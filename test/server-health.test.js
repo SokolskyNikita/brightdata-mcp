@@ -14,9 +14,7 @@ const repo_root = resolve(test_dir, '..');
 // tools this fork does not serve; nothing the model reads may name them
 const hidden = ['extract', 'session_stats',
     'ask_brightdata_assistant', 'list_dataset_fields', 'search_dataset',
-    'chatgpt_ai_insights', 'perplexity_ai_insights',
-    'scraping_browser_click_ref', 'scraping_browser_type_ref',
-    'scraping_browser_fill_form'];
+    'chatgpt_ai_insights', 'perplexity_ai_insights'];
 const hidden_re = new RegExp(`\\b(${hidden.join('|')})\\b|Web Unlocker`);
 
 test('nothing the model reads mentions a tool the fork hides', async t=>{

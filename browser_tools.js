@@ -54,7 +54,17 @@ const calculate_cdp_endpoint = async country=>{
 
 let scraping_browser_navigate = {
     name: 'scraping_browser_navigate',
-    description: 'Navigate a scraping browser session to a new URL',
+    description: [
+        'Open a URL in a real Chrome browser run by Bright Data. Slower than '
+        +'scrape_as_markdown (about 5s per page): use it when scraping '
+        +'returns empty or blocked content, or the page needs JavaScript, '
+        +'scrolling, clicking or typing.',
+        'Returns only the final URL and title; read the page with '
+        +'scraping_browser_get_text, scraping_browser_snapshot or '
+        +'scraping_browser_screenshot.',
+        'If it fails (some pages are unavailable to the browser), the '
+        +'previous page stays open: do not read that as the new page.',
+    ].join('\n'),
     annotations: {
         title: 'Browser Navigate',
         readOnlyHint: true,
@@ -62,11 +72,12 @@ let scraping_browser_navigate = {
         openWorldHint: true,
     },
     parameters: z.object({
-        url: z.string().describe('The URL to navigate to'),
+        url: z.string().describe('Full URL to open, with https://'),
         country: z.string().regex(/^[A-Za-z]{2}$/)
             .optional()
-            .describe('Optional 2-letter ISO country code to route the '
-            +'browser session (e.g., "US", "GB")'),
+            .describe('2-letter country code (e.g. "US", "GB") to open the '
+            +'page from that country. Changing it starts a new browser '
+            +'session.'),
     }),
     execute: async({url, country})=>{
         const normalized_country = country?.toLowerCase();
@@ -91,7 +102,8 @@ let scraping_browser_navigate = {
 
 let scraping_browser_go_back = {
     name: 'scraping_browser_go_back',
-    description: 'Go back to the previous page',
+    description: 'Go back to the previous page in the browser '
+        +'history, like the Back button. Returns the URL and title.',
     annotations: {
         title: 'Browser Go Back',
         readOnlyHint: true,
@@ -116,7 +128,8 @@ let scraping_browser_go_back = {
 
 const scraping_browser_go_forward = {
     name: 'scraping_browser_go_forward',
-    description: 'Go forward to the next page',
+    description: 'Go forward to the next page in the browser '
+        +'history, like the Forward button. Returns the URL and title.',
     annotations: {
         title: 'Browser Go Forward',
         readOnlyHint: true,
@@ -142,12 +155,14 @@ const scraping_browser_go_forward = {
 let scraping_browser_snapshot = {
     name: 'scraping_browser_snapshot',
     description: [
-        'Capture an ARIA snapshot of the current page showing all interactive '
-        +'elements with their refs.',
-        'This provides accurate element references that can be used with '
-        +'scraping_browser_scroll_to_ref and scraping_browser_wait_for_ref.',
-        'A filtered snapshot does not include page text; If necessary, call '
-        +'scraping_browser_get_text to read it.',
+        'List the elements of the current page with ref IDs (e.g. [e23]) to '
+        +'pass to scraping_browser_click_ref, scraping_browser_type_ref, '
+        +'scraping_browser_fill_form, scraping_browser_scroll_to_ref and '
+        +'scraping_browser_wait_for_ref.',
+        'Take a new snapshot after the page changes: refs from an old one may '
+        +'point at other elements.',
+        'To read the page text use scraping_browser_get_text; to see the '
+        +'layout use scraping_browser_screenshot.',
     ].join('\n'),
     annotations: {
         title: 'Browser Snapshot',
@@ -157,11 +172,12 @@ let scraping_browser_snapshot = {
     },
     parameters: z.object({
         filtered: z.boolean().optional().describe(
-            'List only buttons, links and fields (default: '
-            +`${browser_filtered_snapshot}). Saves tokens. Use true for `
-            +'sensitive actions (payments, account changes) so page text '
-            +'cannot pose as an element; false returns the full page tree, '
-            +'which is several times larger.'),
+            'List only links, buttons and form fields, without page text '
+            +`(default: ${browser_filtered_snapshot}). false returns the `
+            +'full page tree with its text, several times larger: use it '
+            +'when an element you need is missing from the filtered list. '
+            +'Keep true for sensitive actions (payments, account changes) so '
+            +'page text cannot pose as an element.'),
     }),
     execute: async({filtered=browser_filtered_snapshot})=>{
         const browser_session = await require_browser();
@@ -192,9 +208,10 @@ let scraping_browser_snapshot = {
 let scraping_browser_click_ref = {
     name: 'scraping_browser_click_ref',
     description: [
-        'Click on an element using its ref from the ARIA snapshot.',
-        'Use scraping_browser_snapshot first to get the correct ref values.',
-        'This is more reliable than CSS selectors.'
+        'Click an element (link, button, tab, checkbox) by its ref from the '
+        +'latest scraping_browser_snapshot.',
+        'Returns a confirmation only: take a new snapshot or call '
+        +'scraping_browser_get_text to see what changed.',
     ].join('\n'),
     annotations: {
         title: 'Browser Click Element',
@@ -203,8 +220,9 @@ let scraping_browser_click_ref = {
         openWorldHint: true,
     },
     parameters: z.object({
-        ref: z.string().describe('The ref attribute from the ARIA snapshot (e.g., "23")'),
-        element: z.string().describe('Description of the element being clicked for context'),
+        ref: z.string().describe('Ref from the latest snapshot, e.g. "e23"'),
+        element: z.string().describe('Short description of the element, '
+            +'e.g. "Next page button"'),
     }),
     execute: async({ref, element})=>{
         const browser_session = await require_browser();
@@ -221,9 +239,10 @@ let scraping_browser_click_ref = {
 let scraping_browser_type_ref = {
     name: 'scraping_browser_type_ref',
     description: [
-        'Type text into an element using its ref from the ARIA snapshot.',
-        'Use scraping_browser_snapshot first to get the correct ref values.',
-        'This is more reliable than CSS selectors.'
+        'Type text into a text field by its ref from the latest '
+        +'scraping_browser_snapshot, replacing what it holds. Set submit to '
+        +'press Enter afterwards, e.g. to run a search.',
+        'Returns a confirmation only: read the page again to see the result.',
     ].join('\n'),
     annotations: {
         title: 'Browser Type Text',
@@ -232,11 +251,12 @@ let scraping_browser_type_ref = {
         openWorldHint: true,
     },
     parameters: z.object({
-        ref: z.string().describe('The ref attribute from the ARIA snapshot (e.g., "23")'),
-        element: z.string().describe('Description of the element being typed into for context'),
+        ref: z.string().describe('Ref from the latest snapshot, e.g. "e23"'),
+        element: z.string().describe('Short description of the field, '
+            +'e.g. "Search box"'),
         text: z.string().describe('Text to type'),
         submit: z.boolean().optional()
-            .describe('Whether to submit the form after typing (press Enter)'),
+            .describe('Press Enter after typing (default: false)'),
     }),
     execute: async({ref, element, text, submit})=>{
         const browser_session = await require_browser();
@@ -247,7 +267,10 @@ let scraping_browser_type_ref = {
             // Wikipedia swap the input for a new element while typing, and
             // the old ref then never resolves (30s timeout)
             if (submit)
-                await (await browser_session.get_page()).keyboard.press('Enter');
+            {
+                const page = await browser_session.get_page();
+                await page.keyboard.press('Enter');
+            }
             const suffix = submit ? ' and submitted the form' : '';
             return 'Successfully typed "'+text+'" into element: '+element
                 +' (ref='+ref+')'+suffix;
@@ -259,8 +282,12 @@ let scraping_browser_type_ref = {
 
 let scraping_browser_screenshot = {
     name: 'scraping_browser_screenshot',
-    description: 'Take a screenshot of the current page. Set '
-        +'full_page to capture the whole scrollable page.',
+    description: [
+        'Take a PNG screenshot of the current page and return it as an image: '
+        +'for layout, charts, images or anything that is not text. Needs a '
+        +'model that can read images.',
+        'Captures the visible window unless full_page is set.',
+    ].join('\n'),
     annotations: {
         title: 'Browser Screenshot',
         readOnlyHint: true,
@@ -268,11 +295,9 @@ let scraping_browser_screenshot = {
         openWorldHint: true,
     },
     parameters: z.object({
-        full_page: z.boolean().optional().describe([
-            'Whether to screenshot the full page (default: false)',
-            'You should avoid fullscreen if it\'s not important, since the '
-            +'images can be quite large',
-        ].join('\n')),
+        full_page: z.boolean().optional().describe('Capture the whole '
+            +'scrollable page, not just the window (default: false). '
+            +'Full-page images can be very large.'),
     }),
     execute: async({full_page=false})=>{
         const page = await (await require_browser()).get_page();
@@ -287,9 +312,13 @@ let scraping_browser_screenshot = {
 
 let scraping_browser_get_html = {
     name: 'scraping_browser_get_html',
-    description: 'Get the HTML content of the current page. Avoid using this '
-    +'tool and if used, use full_page option unless it is important to see '
-    +'things like script tags since this can be large',
+    description: [
+        'Return the HTML of the current page: the <body> only, or the whole '
+        +'document with <head> and scripts when full_page is true.',
+        'Usually much larger than scraping_browser_get_text: use it only when '
+        +'you need markup such as attributes, link targets or tables. For a '
+        +'page that does not need a browser, scrape_as_html is faster.',
+    ].join('\n'),
     annotations: {
         title: 'Browser Get HTML',
         readOnlyHint: true,
@@ -297,11 +326,8 @@ let scraping_browser_get_html = {
         openWorldHint: true,
     },
     parameters: z.object({
-        full_page: z.boolean().optional().describe([
-            'Whether to get the full page HTML including head and script tags',
-            'Avoid this if you only need the extra HTML, since it can be '
-            +'quite large',
-        ].join('\n')),
+        full_page: z.boolean().optional().describe('Include <head> and '
+            +'script tags (default: false). This can be very large.'),
     }),
     execute: async({full_page=false})=>{
         const page = await (await require_browser()).get_page();
@@ -320,7 +346,15 @@ let scraping_browser_get_html = {
 
 let scraping_browser_get_text = {
     name: 'scraping_browser_get_text',
-    description: 'Get the text content of the current page',
+    description: [
+        'Return the visible text of the current page (its innerText): no '
+        +'links, images or markup.',
+        'Reads the page already open and loads nothing: call '
+        +'scraping_browser_navigate first. If that failed, this returns the '
+        +'previous page.',
+        'For a page that does not need a browser, scrape_as_markdown is '
+        +'faster and keeps links.',
+    ].join('\n'),
     annotations: {
         title: 'Browser Get Text',
         readOnlyHint: true,
@@ -337,7 +371,11 @@ let scraping_browser_get_text = {
 
 let scraping_browser_scroll = {
     name: 'scraping_browser_scroll',
-    description: 'Scroll to the bottom of the current page',
+    description: [
+        'Scroll to the bottom of the current page so content that loads as '
+        +'you scroll (feeds, lazy images, "load more" lists) appears.',
+        'Call it again for more, then read the page again.',
+    ].join('\n'),
     annotations: {
         title: 'Browser Scroll',
         readOnlyHint: true,
@@ -360,11 +398,9 @@ let scraping_browser_scroll = {
 
 let scraping_browser_scroll_to_ref = {
     name: 'scraping_browser_scroll_to_ref',
-    description: [
-        'Scroll to a specific element using its ref from the ARIA snapshot.',
-        'Use scraping_browser_snapshot first to get the correct ref values.',
-        'This is more reliable than CSS selectors.'
-    ].join('\n'),
+    description: 'Scroll an element into view by its ref from '
+        +'the latest scraping_browser_snapshot, e.g. to load the content '
+        +'around it or before a screenshot.',
     annotations: {
         title: 'Browser Scroll to Element',
         readOnlyHint: true,
@@ -372,8 +408,8 @@ let scraping_browser_scroll_to_ref = {
         openWorldHint: true,
     },
     parameters: z.object({
-        ref: z.string().describe('The ref attribute from the ARIA snapshot (e.g., "23")'),
-        element: z.string().describe('Description of the element to scroll to'),
+        ref: z.string().describe('Ref from the latest snapshot, e.g. "e23"'),
+        element: z.string().describe('Short description of the element'),
     }),
     execute: async({ref, element})=>{
         const browser_session = await require_browser();
@@ -391,10 +427,10 @@ let scraping_browser_scroll_to_ref = {
 let scraping_browser_network_requests = {
     name: 'scraping_browser_network_requests',
     description: [
-        'Get all network requests made since loading the current page.',
-        'Shows HTTP method, URL, status code and status text for each request.',
-        'Useful for debugging API calls, tracking data fetching, and '
-        +'understanding page behavior.'
+        'List the network requests the current page made since it was '
+        +'opened: method, URL and status of each.',
+        'Useful to find the API a page loads its data from, or why content '
+        +'is missing.',
     ].join('\n'),
     annotations: {
         title: 'Browser Network Requests',
@@ -434,9 +470,9 @@ let scraping_browser_network_requests = {
 let scraping_browser_wait_for_ref = {
     name: 'scraping_browser_wait_for_ref',
     description: [
-        'Wait for an element to be visible using its ref from the ARIA snapshot.',
-        'Use scraping_browser_snapshot first to get the correct ref values.',
-        'This is more reliable than CSS selectors.'
+        'Wait until an element, by its ref from the latest '
+        +'scraping_browser_snapshot, is visible, e.g. results that appear '
+        +'after a click. Fails after timeout.',
     ].join('\n'),
     annotations: {
         title: 'Browser Wait for Element',
@@ -445,8 +481,8 @@ let scraping_browser_wait_for_ref = {
         openWorldHint: true,
     },
     parameters: z.object({
-        ref: z.string().describe('The ref attribute from the ARIA snapshot (e.g., "23")'),
-        element: z.string().describe('Description of the element being waited for'),
+        ref: z.string().describe('Ref from the latest snapshot, e.g. "e23"'),
+        element: z.string().describe('Short description of the element'),
         timeout: z.number().optional()
             .describe('Maximum time to wait in milliseconds (default: 30000)'),
     }),
@@ -465,9 +501,11 @@ let scraping_browser_wait_for_ref = {
 let scraping_browser_fill_form = {
     name: 'scraping_browser_fill_form',
     description: [
-        'Fill multiple form fields in one operation.',
-        'Use scraping_browser_snapshot first to get the correct ref values.',
-        'This is more efficient than filling fields one by one.'
+        'Fill several form fields in one call (text boxes, checkboxes, radio '
+        +'buttons, dropdowns, sliders), each by its ref from the latest '
+        +'scraping_browser_snapshot.',
+        'Does not submit the form: click its submit button with '
+        +'scraping_browser_click_ref.',
     ].join('\n'),
     annotations: {
         title: 'Browser Fill Form',
@@ -481,7 +519,7 @@ let scraping_browser_fill_form = {
             type: z.enum(['textbox', 'checkbox', 'radio', 'combobox',
                 'slider']).describe('Type of the field'),
             ref: z.string().describe(
-                'Exact target field reference from the page snapshot'),
+                'Ref from the latest snapshot, e.g. "e23"'),
             value: z.string().describe([
                 'Value to fill in the field.',
                 'For checkbox: use "true" or "false".',
@@ -523,6 +561,15 @@ let scraping_browser_fill_form = {
         }
     },
 };
+
+// fork: Bright Data refuses pages that robots.txt disallows unless the
+// account passed KYC, with a long error about KYC applications. The model
+// only needs to know the browser cannot open the page
+const blocked_re = new RegExp('restricted in accordance with robots\\.txt'
+    +'|kyc-verification', 'i');
+export const blocked_page_text = 'The browser is unavailable for this page. '
+    +'Try scrape_as_markdown instead.';
+export const is_blocked_page = e=>blocked_re.test(String(e?.message ?? e));
 
 export const tools = [
     scraping_browser_navigate,

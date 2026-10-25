@@ -3,7 +3,8 @@
 import {FastMCP, UserError} from 'fastmcp';
 import {z} from 'zod';
 import axios from 'axios';
-import {tools as browser_tools} from './browser_tools.js';
+import {tools as browser_tools, is_blocked_page, blocked_page_text}
+    from './browser_tools.js';
 import prompts from './prompts.js';
 import {gate_page_content, refusal_text} from './content_gate.js';
 import {wrap_untrusted} from './untrusted_content.js';
@@ -68,18 +69,13 @@ function build_allowed_tools(groups = [], custom_tools = []){
 }
 
 const allowed_tools = build_allowed_tools(tool_groups, custom_tools);
-// fork: only the Google search tools, get_stats_file, the pre-built
-// scraper, the scrape_* and the browser tools
-// are ever served; GROUPS and TOOLS can narrow this but never add to it.
-// The browser only reads pages: the tools that click, type or fill forms
-// are left out
-const interactive_browser_tools = ['scraping_browser_click_ref',
-    'scraping_browser_type_ref', 'scraping_browser_fill_form'];
+// fork: only the Google search tools, the scrape_* tools, get_stats_file,
+// the pre-built scraper and the browser tools are ever served; GROUPS and
+// TOOLS can narrow this but never add to it
 const served_tools = new Set(['search_engine', 'search_engine_batch',
     'scrape_as_markdown', 'scrape_as_html', 'scrape_batch',
     'get_stats_file', ...scraper_tool_names,
-    ...browser_tools.map(t=>t.name)
-        .filter(n=>!interactive_browser_tools.includes(n))]);
+    ...browser_tools.map(t=>t.name)]);
 function parse_rate_limit(rate_limit_str) {
     if (!rate_limit_str) 
         return null;
@@ -217,7 +213,7 @@ const instructions = 'Bright Data tools fetch live web data. For '
     +'get_scraper_results. Use search_engine to find pages. Otherwise read '
     +'pages with scrape_as_markdown, or scrape_batch for several URLs. Use '
     +'the scraping_browser_* tools only when scraping fails or the page '
-    +'needs JavaScript or scrolling.';
+    +'needs JavaScript, scrolling, clicking or typing.';
 
 let server = new FastMCP({
     name: 'Bright Data',
@@ -305,8 +301,9 @@ async function google_search({query, cursor, tool, ctx, retry_ms}){
 addTool({
     name: 'search_engine',
     description: 'Search Google. Returns organic results as JSON (link, '
-        +'title, description). Ideal for finding pages and gathering '
-        +'current information and news.',
+        +'title, description), about 10 per page. Use it to find pages and '
+        +'current information; read a result with scrape_as_markdown. Use '
+        +'search_engine_batch for several queries at once.',
     annotations: {
         title: 'Search Engine',
         readOnlyHint: true,
@@ -314,10 +311,11 @@ addTool({
         openWorldHint: true,
     },
     parameters: z.object({
-        query: z.string(),
+        query: z.string().describe('Search terms, as typed into Google'),
         cursor: z.string()
             .optional()
-            .describe('Pagination cursor for next page'),
+            .describe('Results page: "1" for the second page, "2" for the '
+                +'third, and so on. Omit for the first page.'),
     }),
     execute: tool_fn('search_engine', async({query, cursor}, ctx)=>
         JSON.stringify(await google_search({query, cursor, ctx,
@@ -326,15 +324,21 @@ addTool({
 
 addTool({
     name: 'scrape_as_markdown',
-    description: 'Scrape a single webpage URL with advanced options for '
-    +'content extraction and get back the results in MarkDown language.',
+    description: 'Fetch one web page through Bright Data and return its '
+    +'text, with links and code kept and other formatting removed. The '
+    +'default way to read a page: faster and more reliable than the '
+    +'browser. Use scrape_batch for 2 to 5 URLs, and the scraping_browser_* '
+    +'tools only if this returns empty or blocked content or the page needs '
+    +'JavaScript, scrolling or clicking. For LinkedIn, company databases, '
+    +'Glassdoor or Indeed, list_scrapers returns structured data.',
     annotations: {
         title: 'Scrape as Markdown',
         readOnlyHint: true,
         destructiveHint: false,
         openWorldHint: true,
     },
-    parameters: z.object({url: z.string().url()}),
+    parameters: z.object({url: z.string().url()
+        .describe('Full URL of the page')}),
     execute: tool_fn('scrape_as_markdown', async({url}, ctx)=>{
         let response = await base_request({
             url: 'https://api.brightdata.com/request',
@@ -360,9 +364,9 @@ addTool({
 // after 25s since a batch runs its queries side by side
 addTool({
     name: 'search_engine_batch',
-    description: 'Run up to 5 Google searches at once. Returns a JSON list '
-        +'with, for each query, its organic results (link, title, '
-        +'description) or an error.',
+    description: 'Run 2 to 5 Google searches at once, like search_engine. '
+        +'Returns a JSON list with, for each query, its organic results '
+        +'(link, title, description) or an error.',
     annotations: {
         title: 'Search Engine Batch',
         readOnlyHint: true,
@@ -371,10 +375,12 @@ addTool({
     },
     parameters: z.object({
         queries: z.array(z.object({
-            query: z.string(),
+            query: z.string().describe('Search terms, as typed into Google'),
             cursor: z.string()
-                .optional(),
-        })).min(1).max(5),
+                .optional()
+                .describe('Results page: "1" for the second page, and so '
+                    +'on. Omit for the first page.'),
+        })).min(1).max(5).describe('The searches to run, at most 5'),
     }),
     execute: tool_fn('search_engine_batch', async({queries}, ctx)=>{
         const results = await Promise.all(queries.map(async({query,
@@ -395,8 +401,10 @@ addTool({
 
 addTool({
    name: 'scrape_batch',
-   description: 'Scrape multiple webpages URLs with advanced options for '
-        +'content extraction and get back the results in MarkDown language.',
+   description: 'Fetch 2 to 5 web pages at once, like scrape_as_markdown. '
+        +'Returns a JSON list in the order given: {status: "fulfilled", '
+        +'value: {url, content}} for a page that worked, or {status: '
+        +'"rejected", reason} for one that failed.',
    annotations: {
        title: 'Scrape Batch',
        readOnlyHint: true,
@@ -404,7 +412,8 @@ addTool({
        openWorldHint: true,
    },
    parameters: z.object({
-       urls: z.array(z.string().url()).min(1).max(5).describe('Array of URLs to scrape (max 5)')
+       urls: z.array(z.string().url()).min(1).max(5)
+           .describe('Full URLs of the pages, at most 5')
    }),
    execute: tool_fn('scrape_batch', async ({urls}, ctx)=>{
        const scrapePromises = urls.map(url =>
@@ -438,15 +447,17 @@ addTool({
 
 addTool({
     name: 'scrape_as_html',
-    description: 'Scrape a single webpage URL with advanced options for '
-    +'content extraction and get back the results in HTML.',
+    description: 'Fetch one web page through Bright Data and return its raw '
+    +'HTML. Much larger than scrape_as_markdown: use it only when you need '
+    +'markup such as attributes, tables or embedded data.',
     annotations: {
         title: 'Scrape as HTML',
         readOnlyHint: true,
         destructiveHint: false,
         openWorldHint: true,
     },
-    parameters: z.object({url: z.string().url()}),
+    parameters: z.object({url: z.string().url()
+        .describe('Full URL of the page')}),
     execute: tool_fn('scrape_as_html', async({url}, ctx)=>{
         let response = await axios({
             url: 'https://api.brightdata.com/request',
@@ -783,6 +794,8 @@ for (let tool of browser_tools)
             return wrap_external(tool.name, await tool.execute(params, ctx));
         } catch(e){
             err = e;
+            if (is_blocked_page(e))
+                throw new UserError(blocked_page_text);
             throw new UserError(safe_error(e, api_token));
         } finally {
             record_call({name: tool.name, ts, err,

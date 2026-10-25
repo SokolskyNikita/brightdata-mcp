@@ -57,7 +57,8 @@ export function scraper_tools({catalog, runner, tool_fn, headers}){
             +'get_scraper_progress and call get_scraper_results when ready. '
             +'Records with an "error" field explain failed inputs.',
         {dataset_id, method, input: z.array(z.record(z.string(), z.any()))
-            .min(1), limit_per_input: z.number().int().min(1).max(1000)
+            .min(1).describe('One object per URL or query, shaped like '
+                +'sample_input'), limit_per_input: z.number().int().min(1).max(1000)
             .optional().default(10).describe('discover_by_* only')},
         async(d, h)=>{
             if (!(await catalog.load_catalog()).some(s=>

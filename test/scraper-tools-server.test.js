@@ -83,13 +83,10 @@ test('old groups and web_data names turn on the scraper tools', async t=>{
     }
 });
 
-const interactive = ['scraping_browser_click_ref',
-    'scraping_browser_type_ref', 'scraping_browser_fill_form'];
 const served = ['search_engine', 'search_engine_batch', 'scrape_as_markdown',
     'scrape_as_html', 'scrape_batch', 'get_stats_file',
     ...scraper_tool_names,
-    ...browser_tools.map(t=>t.name).filter(n=>!interactive.includes(n))]
-    .sort();
+    ...browser_tools.map(t=>t.name)].sort();
 
 test('no GROUPS or TOOLS serves only the scraper and browser tools',
 async t=>{

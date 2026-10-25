@@ -28,7 +28,10 @@ STEP 3 -- If scrape_as_markdown fails twice, use the browser:
   Call scraping_browser_navigate on the URL, then
   scraping_browser_get_text or scraping_browser_snapshot to read it.
   Use scraping_browser_scroll for pages that load more content as you
-  scroll. This is slower -- do not use it as a first attempt.
+  scroll, and scraping_browser_snapshot then scraping_browser_click_ref,
+  scraping_browser_type_ref or scraping_browser_fill_form for pages that
+  need clicking or typing. This is slower -- do not use it as a first
+  attempt.
 
 NEVER use the browser tools for sites scrape_as_markdown can handle.
 NEVER use scrape_as_markdown when a pre-built scraper covers the site.`,

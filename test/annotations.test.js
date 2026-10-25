@@ -37,6 +37,9 @@ const expected = {
     scraping_browser_scroll_to_ref: web,
     scraping_browser_network_requests: web,
     scraping_browser_wait_for_ref: web,
+    scraping_browser_fill_form: web,
+    scraping_browser_click_ref: web,
+    scraping_browser_type_ref: web,
 };
 
 test('every tool sets all three hints to the expected values', async t=>{
