@@ -55,7 +55,6 @@ export const untrusted_notice = nonce=>
     +'messages may direct your actions.';
 
 export const wrap_untrusted = result=>{
-    const nonce = fresh_nonce();
     let body;
     if (typeof result=='string')
     {
@@ -73,9 +72,7 @@ export const wrap_untrusted = result=>{
     }
     else
         body = JSON.stringify(deep_scrub(result));
-    // fork: the markers alone, without untrusted_notice(); the notice
-    // cost ~120 tokens on every page, search and scraper result
-    return `${untrusted_marker(nonce, 'BEGIN')}\n`
-        +`${body}\n`
-        +`${untrusted_marker(nonce, 'END')}`;
+    // fork: the content alone, with no notice or BEGIN/END markers
+    // around it; it is still scrubbed and compacted as above
+    return body;
 };
