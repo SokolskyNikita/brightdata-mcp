@@ -73,8 +73,9 @@ export const wrap_untrusted = result=>{
     }
     else
         body = JSON.stringify(deep_scrub(result));
-    return `${untrusted_notice(nonce)}\n`
-        +`${untrusted_marker(nonce, 'BEGIN')}\n`
+    // fork: the markers alone, without untrusted_notice(); the notice
+    // cost ~120 tokens on every page, search and scraper result
+    return `${untrusted_marker(nonce, 'BEGIN')}\n`
         +`${body}\n`
         +`${untrusted_marker(nonce, 'END')}`;
 };

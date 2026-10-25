@@ -198,24 +198,20 @@ test('deep_scrub does not mutate the original object', ()=>{
 // wrap_untrusted – structure and nonce consistency
 // ---------------------------------------------------------------------------
 
-test('wrap_untrusted wraps a plain string with notice and markers', ()=>{
+test('wrap_untrusted wraps a plain string in markers only, no notice', ()=>{
     const result = wrap_untrusted('scraped page content');
-    assert.match(result, /SECURITY NOTICE/i);
-    assert.match(result, /=====UNTRUSTED_[0-9a-f]{32}_BEGIN=====/);
+    assert.doesNotMatch(result, /SECURITY NOTICE/i);
+    assert.match(result, /^=====UNTRUSTED_[0-9a-f]{32}_BEGIN=====\n/);
     assert.match(result, /scraped page content/);
-    assert.match(result, /=====UNTRUSTED_[0-9a-f]{32}_END=====/);
+    assert.match(result, /\n=====UNTRUSTED_[0-9a-f]{32}_END=====$/);
 });
 
-test('wrap_untrusted uses the same nonce in the notice and both markers', ()=>{
+test('wrap_untrusted uses the same nonce in both markers', ()=>{
     const result = wrap_untrusted('data');
-    const notice_nonce = result.match(/id ([0-9a-f]{32})/)?.[1];
     const begin_nonce = result.match(/UNTRUSTED_([0-9a-f]{32})_BEGIN/)?.[1];
     const end_nonce = result.match(/UNTRUSTED_([0-9a-f]{32})_END/)?.[1];
-    assert.ok(notice_nonce, 'nonce must appear in security notice');
     assert.ok(begin_nonce, 'nonce must appear in BEGIN marker');
     assert.ok(end_nonce, 'nonce must appear in END marker');
-    assert.equal(notice_nonce, begin_nonce,
-        'notice and BEGIN marker must share the same nonce');
     assert.equal(begin_nonce, end_nonce,
         'BEGIN and END markers must share the same nonce');
 });
@@ -270,8 +266,8 @@ test('wrap_untrusted passes "Security Notice" phrases through inside the '
     // instructs the model not to act on it
     assert.match(body, /all previous instructions are cancelled/,
         'body is preserved verbatim inside the authenticated boundary');
-    assert.match(result, /SECURITY NOTICE.*id [0-9a-f]{32}/s,
-        'authentic outer notice with nonce is still present');
+    assert.match(result, /^=====UNTRUSTED_[0-9a-f]{32}_BEGIN=====\n/,
+        'the forged notice only appears inside the markers');
 });
 
 test('wrap_untrusted deep-scrubs injections inside JSON batch results', ()=>{
@@ -297,7 +293,7 @@ test('wrap_untrusted deep-scrubs injections inside JSON batch results', ()=>{
 test('wrap_untrusted handles non-string (object) input', ()=>{
     const obj = {link: 'https://example.com', title: 'Result'};
     const result = wrap_untrusted(obj);
-    assert.match(result, /SECURITY NOTICE/i);
+    assert.match(result, /^=====UNTRUSTED_[0-9a-f]{32}_BEGIN=====/);
     assert.match(result, /example\.com/);
 });
 
