@@ -35,6 +35,8 @@
   },
   "tools": [
     {"name": "search_engine", "description": "Search Google. Returns organic results as JSON (link, title, description). Ideal for finding pages and gathering current information and news."},
+    {"name": "search_engine_batch", "description": "Run up to 5 Google searches at once. Returns a JSON list with, for each query, its organic results (link, title, description) or an error."},
+    {"name": "get_stats_file", "description": "Where this server logs timing stats: one JSON line per tool call. Returns the file path and file:// link, how many calls it holds and the first and last call time."},
     {"name": "list_scrapers", "description": "List the pre-built scrapers available here (LinkedIn, Crunchbase, PitchBook, ZoomInfo, Owler, Glassdoor, Indeed) with their dataset_id and collection methods."},
     {"name": "get_scraper_details", "description": "Show a scraper's description, input fields, example input and main output fields for one collection method."},
     {"name": "run_scraper", "description": "Run any pre-built scraper. Waits up to 45 seconds, then returns a snapshot ID to check later."},

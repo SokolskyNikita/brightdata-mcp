@@ -29,7 +29,8 @@ test('the packed npm package installs, starts and lists its tools',
         await client.connect(new StdioClientTransport({cwd: dir,
             command: process.execPath,
             args: [join(dir, 'node_modules/@brightdata/mcp/server.js')],
-            env: {...clean_env, API_TOKEN: 'packed-install-test'}}));
+            env: {...clean_env, API_TOKEN: 'packed-install-test',
+                STATS_FILE: 'off'}}));
         const {tools} = await client.listTools();
         const names = tools.map(x=>x.name);
         assert.ok(names.includes('run_scraper'), 'scraper tools are served');

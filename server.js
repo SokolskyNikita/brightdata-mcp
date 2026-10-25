@@ -16,6 +16,7 @@ import {my_scrapers} from './my_scrapers.js';
 import {sophie_assistant_tool, ask_sophie} from './sophie_assistant.js';
 import {parse_google_search_response} from './search_utils.js';
 import {first_success} from './first_success.js';
+import {create_stats, describe_stats} from './stats.js';
 import {dataset_id_schema, filter_schema, metadata_to_fields, FILTER_OPERATORS}
     from './search_dataset_schema.js';
 import {createRequire} from 'node:module';
@@ -67,13 +68,15 @@ function build_allowed_tools(groups = [], custom_tools = []){
 }
 
 const allowed_tools = build_allowed_tools(tool_groups, custom_tools);
-// fork: only search_engine, the pre-built scraper and the browser tools
+// fork: only the Google search tools, get_stats_file, the pre-built
+// scraper and the browser tools
 // are ever served; GROUPS and TOOLS can narrow this but never add to it.
 // The browser only reads pages: the tools that click, type or fill forms
 // are left out
 const interactive_browser_tools = ['scraping_browser_click_ref',
     'scraping_browser_type_ref', 'scraping_browser_fill_form'];
-const served_tools = new Set(['search_engine', ...scraper_tool_names,
+const served_tools = new Set(['search_engine', 'search_engine_batch',
+    'get_stats_file', ...scraper_tool_names,
     ...browser_tools.map(t=>t.name)
         .filter(n=>!interactive_browser_tools.includes(n))]);
 function parse_rate_limit(rate_limit_str) {
@@ -221,12 +224,23 @@ let server = new FastMCP({
     instructions,
 });
 let debug_stats = {tool_calls: {}, session_calls: 0, call_timestamps: []};
+const stats = create_stats();
+// fork: one line per tool call in the stats file; error text is the same
+// redacted message the model sees, cut to 200 chars
+const record_call = ({name, ts, err, client, meta})=>stats.record({
+    ts: new Date(ts).toISOString(), tool: name, ms: Date.now()-ts,
+    ok: !err, ...err ? {error: safe_error(err, api_token).slice(0, 200)}
+        : {}, client, ...meta});
 
 const addTool = (tool) => {
     if (!served_tools.has(tool.name))
         return;
-    if (allowed_tools.size>0 && !allowed_tools.has(tool.name))
+    // fork: get_stats_file is not in any group and is always served
+    if (allowed_tools.size>0 && !allowed_tools.has(tool.name)
+        && tool.name!='get_stats_file')
+    {
         return;
+    }
     server.addTool(tool);
 };
 
@@ -243,6 +257,47 @@ addTool({
         return JSON.stringify({answer, dialog_id: returned_id});
     }),
 });
+
+// fork: about 1 in 3 Google searches fails (HTTP 200 with
+// x-brd-status-code 502 or 429) or hangs. One retry starts as soon as the
+// first request fails, or after retry_ms if it is still running; the
+// first good result wins and the other request is aborted. Each request
+// counts toward tool_meta.attempts
+async function google_search({query, cursor, tool, ctx, retry_ms}){
+    const url = search_url('google', query, cursor);
+    const meta = ctx.tool_meta||{};
+    return first_success(async signal=>{
+        meta.attempts = (meta.attempts||0)+1;
+        const response = await axios({
+            url: 'https://api.brightdata.com/request',
+            method: 'POST',
+            data: {
+                url: `${url}&brd_json=1`,
+                zone: unlocker_zone,
+                format: 'raw',
+                data_format: 'parsed_light',
+            },
+            headers: api_headers(ctx.clientName, tool),
+            responseType: 'text',
+            timeout: base_timeout,
+            signal,
+        });
+        const brd_status = response.headers?.['x-brd-status-code'];
+        if (brd_status && brd_status!='200')
+        {
+            throw new Error('Bright Data could not get the search '
+                +`results (status ${brd_status})`);
+        }
+        return parse_google_search_response(response.data, tool);
+    }, {
+        delays_ms: [0, retry_ms],
+        // Bright Data's own 4xx (bad token, zone, usage limit) will not
+        // change on a second try
+        is_final: e=>e.response?.status>=400 && e.response.status<500,
+        on_error: (e, n)=>console.error('[%s] attempt %d failed: %s', tool,
+            n+1, redact_url_creds(e.message)),
+    });
+}
 
 // fork: Google only, with no country option; Bing and Yandex came back
 // as 50-90k chars of raw page and geo-targeted queries often failed
@@ -263,45 +318,9 @@ addTool({
             .optional()
             .describe('Pagination cursor for next page'),
     }),
-    // fork: about 1 in 3 searches fails (HTTP 200 with x-brd-status-code
-    // 502 or 429) or hangs, so one retry starts as soon as the first
-    // request fails, or after 15s if it is still running; the first good
-    // result wins and the other request is aborted
-    execute: tool_fn('search_engine', async({query, cursor}, ctx)=>{
-        const url = search_url('google', query, cursor);
-        const result = await first_success(async(signal, n)=>{
-            const response = await axios({
-                url: 'https://api.brightdata.com/request',
-                method: 'POST',
-                data: {
-                    url: `${url}&brd_json=1`,
-                    zone: unlocker_zone,
-                    format: 'raw',
-                    data_format: 'parsed_light',
-                },
-                headers: api_headers(ctx.clientName, 'search_engine'),
-                responseType: 'text',
-                timeout: base_timeout,
-                signal,
-            });
-            const brd_status = response.headers?.['x-brd-status-code'];
-            if (brd_status && brd_status!='200')
-            {
-                throw new Error('Bright Data could not get the search '
-                    +`results (status ${brd_status})`);
-            }
-            return parse_google_search_response(response.data,
-                'search_engine');
-        }, {
-            delays_ms: [0, 15000],
-            // Bright Data's own 4xx (bad token, zone, usage limit) will
-            // not change on a second try
-            is_final: e=>e.response?.status>=400 && e.response.status<500,
-            on_error: (e, n)=>console.error('[search_engine] attempt %d '
-                +'failed: %s', n+1, redact_url_creds(e.message)),
-        });
-        return JSON.stringify(result, null, 2);
-    }),
+    execute: tool_fn('search_engine', async({query, cursor}, ctx)=>
+        JSON.stringify(await google_search({query, cursor, ctx,
+            tool: 'search_engine', retry_ms: 15000}), null, 2)),
 });
 
 addTool({
@@ -336,10 +355,13 @@ addTool({
     }),
 });
 
+// fork: Google only like search_engine; each query gets its own retry,
+// after 25s since a batch runs its queries side by side
 addTool({
     name: 'search_engine_batch',
-    description: 'Run multiple search queries simultaneously. Returns '
-    +'JSON for Google, Markdown for Bing/Yandex.',
+    description: 'Run up to 5 Google searches at once. Returns a JSON list '
+        +'with, for each query, its organic results (link, title, '
+        +'description) or an error.',
     annotations: {
         title: 'Search Engine Batch',
         readOnlyHint: true,
@@ -349,66 +371,23 @@ addTool({
     parameters: z.object({
         queries: z.array(z.object({
             query: z.string(),
-            engine: z.enum(['google', 'bing', 'yandex'])
-                .optional()
-                .default('google'),
             cursor: z.string()
                 .optional(),
-            geo_location: z.string()
-                .length(2)
-                .optional()
-                .describe('2-letter country code for geo-targeted results '
-                    +'(e.g., "us", "uk")'),
         })).min(1).max(5),
     }),
     execute: tool_fn('search_engine_batch', async({queries}, ctx)=>{
-        const search_promises = queries.map(({query, engine, cursor,
-            geo_location})=>{
-            const normalized_engine = engine || 'google';
-            const is_google = normalized_engine === 'google';
-            const url = search_url(normalized_engine, query, cursor,
-                geo_location);
-            return (async()=>{
-                try {
-                    const response = await base_request({
-                        url: 'https://api.brightdata.com/request',
-                        method: 'POST',
-                        data: {
-                            url: is_google ? `${url}&brd_json=1` : url,
-                            zone: unlocker_zone,
-                            format: 'raw',
-                            data_format: is_google ? 'parsed_light'
-                                : 'markdown',
-                        },
-                        headers: api_headers(ctx.clientName,
-                            'search_engine_batch'),
-                        responseType: 'text',
-                    });
-                    if (is_google)
-                    {
-                        return {
-                            query,
-                            engine: normalized_engine,
-                            result: parse_google_search_response(response.data,
-                                'search_engine_batch'),
-                        };
-                    }
-                    return {
-                        query,
-                        engine: normalized_engine,
-                        result: response.data,
-                    };
-                } catch(e){
-                    return {
-                        query,
-                        engine: normalized_engine,
-                        error: safe_error(e, api_token),
-                    };
-                }
-            })();
-        });
-
-        const results = await Promise.all(search_promises);
+        const results = await Promise.all(queries.map(async({query,
+            cursor})=>
+        {
+            try {
+                return {query, result: await google_search({query, cursor,
+                    ctx, tool: 'search_engine_batch', retry_ms: 25000})};
+            } catch(e){
+                return {query, error: safe_error(e, api_token)};
+            }
+        }));
+        Object.assign(ctx.tool_meta, {queries: queries.length,
+            failed: results.filter(r=>r.error).length});
         return JSON.stringify(results, null, 2);
     }),
 });
@@ -797,13 +776,38 @@ for (let tool of browser_tools)
 {
     external_content_tools.add(tool.name);
     addTool({...tool, execute: async(params, ctx)=>{
+        const ts = Date.now();
+        let err;
         try {
             return wrap_external(tool.name, await tool.execute(params, ctx));
         } catch(e){
+            err = e;
             throw new UserError(safe_error(e, api_token));
+        } finally {
+            record_call({name: tool.name, ts, err,
+                client: global.mcpClientInfo?.name || 'unknown-client'});
         }
     }});
 }
+
+addTool({
+    name: 'get_stats_file',
+    description: 'Where this server logs timing stats: one JSON line per '
+        +'tool call (time, tool, duration in ms, success or error, retry '
+        +'attempts). Returns the file path and file:// link, how many '
+        +'calls it holds and the first and last call time.',
+    annotations: {
+        title: 'Get Stats File',
+        readOnlyHint: true,
+        destructiveHint: false,
+        openWorldHint: false,
+    },
+    parameters: z.object({}),
+    execute: async()=>{
+        await stats.flush();
+        return JSON.stringify(await describe_stats(stats.file), null, 2);
+    },
+});
 
 console.error('Starting server...');
 
@@ -825,11 +829,12 @@ function tool_fn(name, fn){
         debug_stats.tool_calls[name] = debug_stats.tool_calls[name]||0;
         debug_stats.tool_calls[name]++;
         debug_stats.session_calls++;
-        let ts = Date.now();
+        let ts = Date.now(), err;
         const extended_ctx = {
             ...ctx,
             clientInfo,
             clientName,
+            tool_meta: {},
         };
         try {
             let result = await fn(data, extended_ctx);
@@ -845,6 +850,7 @@ function tool_fn(name, fn){
             return wrap_external(name, result);
         }
         catch(e){
+        err = e;
         if (e.response)
             {
                 console.error(`[%s] error %s %s: %s`, name, e.response.status,
@@ -884,6 +890,8 @@ function tool_fn(name, fn){
         } finally {
             let dur = Date.now()-ts;
             console.error(`[%s] tool finished in %sms`, name, dur);
+            record_call({name, ts, err, client: clientName,
+                meta: extended_ctx.tool_meta});
         }
     };
 }

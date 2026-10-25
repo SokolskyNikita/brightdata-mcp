@@ -2,6 +2,8 @@
 import axios from 'axios';
 
 const stub_url = process.env.__BRD_TEST_STUB_URL;
+// fork: test servers never write to the real stats file
+process.env.STATS_FILE ??= 'off';
 
 axios.interceptors.request.use(config=>{
     if (stub_url && typeof config.url=='string')

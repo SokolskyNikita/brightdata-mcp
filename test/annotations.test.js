@@ -16,6 +16,8 @@ const closed = {readOnlyHint: true, destructiveHint: false,
 
 const expected = {
     search_engine: web,
+    search_engine_batch: web,
+    get_stats_file: closed,
     list_scrapers: closed,
     get_scraper_details: closed,
     get_scraper_progress: closed,

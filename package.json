@@ -51,6 +51,7 @@
         "safe_error.js",
         "scraper_tools.js",
         "first_success.js",
+        "stats.js",
         "my_scrapers.js",
         "prompts.js",
         "sophie_assistant.js",
