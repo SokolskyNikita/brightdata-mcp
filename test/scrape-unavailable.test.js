@@ -9,6 +9,7 @@ import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {StdioClientTransport} from '@modelcontextprotocol/sdk/client/stdio.js';
 import {start_stub_server, close_stub_server}
     from '../test-helpers/stub-server.js';
+import {blocked_page_text} from '../browser_tools.js';
 
 const repo_root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const BLOCKED = 'https://kyc-blocked.example/issues?q=x';
@@ -33,9 +34,7 @@ async t=>{
     {
         const r = await client.callTool({name, arguments: {url: BLOCKED}});
         assert.equal(r.isError, true, name);
-        assert.match(r.content[0].text, new RegExp('BrightData MCP was '
-            +'unable to open this page; please try your local browser '
-            +'instead$'), name);
+        assert.ok(r.content[0].text.endsWith(blocked_page_text), name);
         assert.doesNotMatch(r.content[0].text, /KYC|robots/i, name);
     }
     const empty = await client.callTool({name: 'scrape_as_markdown',
@@ -46,8 +45,7 @@ async t=>{
         arguments: {urls: [BLOCKED, EMPTY, GOOD]}});
     assert.deepEqual(JSON.parse(batch.content[0].text).map(x=>[x.status,
         x.url ?? x.value?.url, x.reason]), [
-        ['rejected', BLOCKED, 'BrightData MCP was unable to open this page; '
-            +'please try your local browser instead'],
+        ['rejected', BLOCKED, blocked_page_text],
         ['rejected', EMPTY, 'The page came back empty.'],
         ['fulfilled', GOOD, undefined]]);
 });
