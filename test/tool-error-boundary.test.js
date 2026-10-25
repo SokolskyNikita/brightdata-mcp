@@ -165,8 +165,9 @@ test('tool_fn caps a long upstream error body', async t=>{
     const text = res.content.find(b=>b.type=='text').text;
     assert.equal(res.isError, true);
     assert.match(text, /HTTP 400/);
-    assert.match(text, /x{400}/);
-    assert.doesNotMatch(text, /x{495}/);
+    assert.match(text, /x{2000}/);
+    assert.doesNotMatch(text, /x{2001}/);
+    assert.doesNotMatch(text, /<html>/);
 });
 
 test('tool errors and logs never carry URL credentials', async t=>{

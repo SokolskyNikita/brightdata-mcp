@@ -1,7 +1,10 @@
 'use strict'; /*jslint node:true es9:true*/
 
 const cred_url_re = /((?:wss?|https?):\/\/)[^/@\s]+@/gi;
-const max_error_len = 500;
+export const max_error_len = 2000;
+const html_re = /<(?:!doctype|html|head|body|title|div|p|h1)\b/i;
+const entities = {amp: '&', lt: '<', gt: '>', quot: '"', apos: "'",
+    nbsp: ' ', '#39': "'"};
 
 export const redact_url_creds = value=>
     (typeof value=='string' ? value : JSON.stringify(value) ?? '')
@@ -10,6 +13,21 @@ export const redact_url_creds = value=>
 export const redact_token = (value, api_token)=>{
     const text = String(value);
     return api_token ? text.split(api_token).join('[REDACTED]') : text;
+};
+
+// error pages are mostly markup; keep only their text so the cap
+// is spent on the message, not on CSS and scripts
+export const html_to_text = value=>{
+    if (typeof value!='string' || !html_re.test(value))
+        return value;
+    return value
+        .replace(/<!--[\s\S]*?-->/g, ' ')
+        .replace(/<(script|style|noscript|svg|template)\b[\s\S]*?<\/\1\s*>/gi,
+            ' ')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/&(amp|lt|gt|quot|apos|nbsp|#39);/g, (_m, k)=>entities[k])
+        .replace(/\s+/g, ' ')
+        .trim();
 };
 
 export const safe_error = (e, api_token, warn = console.error)=>{

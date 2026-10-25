@@ -7,7 +7,7 @@ import {tools as browser_tools} from './browser_tools.js';
 import prompts from './prompts.js';
 import {gate_page_content, refusal_text} from './content_gate.js';
 import {wrap_untrusted} from './untrusted_content.js';
-import {redact_url_creds, safe_error} from './safe_error.js';
+import {html_to_text, redact_url_creds, safe_error} from './safe_error.js';
 import {GROUPS, resolve_tool} from './tool_groups.js';
 import {create_scraper_catalog} from './scraper_catalog.js';
 import {create_scraper_run} from './scraper_run.js';
@@ -847,7 +847,7 @@ function tool_fn(name, fn){
                 if (typeof message=='string' && message.length)
                 {
                     // error bodies from a scraped origin are also untrusted
-                    const body = safe_error(message, api_token);
+                    const body = safe_error(html_to_text(message), api_token);
                     throw new Error(external_content_tools.has(name)
                         ? `HTTP ${e.response.status}:\n${wrap_untrusted(body)}`
                         : `HTTP ${e.response.status}: ${body}`);

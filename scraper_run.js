@@ -1,5 +1,6 @@
 'use strict'; /*jslint node:true es9:true*/
 import axios from 'axios';
+import {html_to_text, max_error_len} from './safe_error.js';
 
 const API_URL = 'https://api.brightdata.com';
 const PENDING = ['starting', 'running', 'building'];
@@ -8,9 +9,10 @@ const enc = encodeURIComponent;
 
 const api_error = (step, e)=>{
     const body = e.response?.data;
-    const msg = typeof body=='string' ? body : JSON.stringify(body??'');
+    const msg = typeof body=='string' ? html_to_text(body)
+        : JSON.stringify(body??'');
     const err = new Error(`${step} failed`
-        +(e.response ? ` (HTTP ${e.response.status}): ${msg.slice(0, 500)}`
+        +(e.response ? ` (HTTP ${e.response.status}): ${msg.slice(0, max_error_len)}`
         : `: ${e.message}`));
     err.step = step;
     err.error_code = e.response?.status??e.code;
