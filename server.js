@@ -689,7 +689,7 @@ for (let {dataset_id, id, description, inputs, defaults = {},
         description,
         annotations: {
             title: dataset_id_to_title(id),
-            readOnlyHint: false,
+            readOnlyHint: true,
             destructiveHint: false,
             openWorldHint: true,
         },

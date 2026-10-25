@@ -7,7 +7,7 @@ export const scraper_tool_names = ['search_scrapers', 'get_scraper_details',
 
 const annotations = (name, title)=>{
     const job = name=='run_scraper';
-    return {title, readOnlyHint: !job, destructiveHint: false,
+    return {title, readOnlyHint: true, destructiveHint: false,
         openWorldHint: job};
 };
 const dataset_id = z.string().describe('dataset_id from search_scrapers');

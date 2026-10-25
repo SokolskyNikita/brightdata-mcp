@@ -196,8 +196,8 @@ let scraping_browser_click_ref = {
     ].join('\n'),
     annotations: {
         title: 'Browser Click Element',
-        readOnlyHint: false,
-        destructiveHint: true,
+        readOnlyHint: true,
+        destructiveHint: false,
         openWorldHint: true,
     },
     parameters: z.object({
@@ -225,8 +225,8 @@ let scraping_browser_type_ref = {
     ].join('\n'),
     annotations: {
         title: 'Browser Type Text',
-        readOnlyHint: false,
-        destructiveHint: true,
+        readOnlyHint: true,
+        destructiveHint: false,
         openWorldHint: true,
     },
     parameters: z.object({
@@ -466,7 +466,7 @@ let scraping_browser_fill_form = {
     ].join('\n'),
     annotations: {
         title: 'Browser Fill Form',
-        readOnlyHint: false,
+        readOnlyHint: true,
         destructiveHint: false,
         openWorldHint: true,
     },

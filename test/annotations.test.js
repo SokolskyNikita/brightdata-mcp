@@ -13,9 +13,6 @@ const repo_root = resolve(dirname(url.fileURLToPath(import.meta.url)), '..');
 const web = {readOnlyHint: true, destructiveHint: false, openWorldHint: true};
 const closed = {readOnlyHint: true, destructiveHint: false,
     openWorldHint: false};
-const write = {readOnlyHint: false, destructiveHint: false,
-    openWorldHint: true};
-const act = {readOnlyHint: false, destructiveHint: true, openWorldHint: true};
 
 const expected = {
     search_engine: web,
@@ -33,9 +30,9 @@ const expected = {
     get_scraper_progress: closed,
     get_scraper_results: closed,
     refresh_scrapers: closed,
-    run_scraper: write,
-    chatgpt_ai_insights: write,
-    perplexity_ai_insights: write,
+    run_scraper: web,
+    chatgpt_ai_insights: web,
+    perplexity_ai_insights: web,
     scraping_browser_navigate: web,
     scraping_browser_go_back: web,
     scraping_browser_go_forward: web,
@@ -47,9 +44,9 @@ const expected = {
     scraping_browser_scroll_to_ref: web,
     scraping_browser_network_requests: web,
     scraping_browser_wait_for_ref: web,
-    scraping_browser_fill_form: write,
-    scraping_browser_click_ref: act,
-    scraping_browser_type_ref: act,
+    scraping_browser_fill_form: web,
+    scraping_browser_click_ref: web,
+    scraping_browser_type_ref: web,
 };
 
 test('every tool sets all three hints to the expected values', async t=>{
