@@ -1,7 +1,8 @@
 'use strict'; /*jslint node:true es9:true*/
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {scraper_tools, scraper_tool_names} from '../scraper_tools.js';
+import {scraper_tools, scraper_tool_names, trim_records}
+    from '../scraper_tools.js';
 
 const setup = (runner = {})=>{
     const calls = [];
@@ -82,3 +83,34 @@ test('tools record the scraper and failed step in tool_meta', async()=>{
     assert.deepEqual(tool_meta, {dataset_id: 'gd_2',
         method: 'collect_by_url', failed_step: 'trigger', error_code: 401});
 });
+
+test('trim_records leaves out fields over 4,000 chars and says which', ()=>{
+    const res = {snapshot_id: 's', status: 'ready', data: [
+        {name: 'A', updates: 'x'.repeat(5000), small: 'y'.repeat(3000)},
+        {name: 'B', updates: 'x'.repeat(4500)}]};
+    const out = trim_records(res);
+    assert.deepEqual(out.data, [{name: 'A', small: 'y'.repeat(3000)},
+        {name: 'B'}]);
+    assert.deepEqual(out.omitted_fields, {updates: 5002+4502});
+    assert.match(out.omitted_note, /include_fields/);
+    assert.equal(trim_records(res, ['updates']).data[0].updates.length,
+        5000);
+    assert.equal(trim_records(res, ['*']), res);
+    const small = {status: 'ready', data: [{a: 1}]};
+    assert.equal(trim_records(small), small, 'unchanged when nothing big');
+    assert.deepEqual(trim_records({status: 'running'}), {status: 'running'});
+});
+
+test('run_scraper and get_scraper_results trim records', async()=>{
+    const big = {snapshot_id: 's', status: 'ready',
+        data: [{a: 1, b: 'z'.repeat(4001)}]};
+    const {call} = setup({run: async()=>big, results: async()=>big});
+    const run = JSON.parse(await call('run_scraper', {dataset_id: 'gd_1',
+        method: 'collect_by_url', input: [{url: 'u'}],
+        include_fields: []}));
+    assert.deepEqual(run.data, [{a: 1}]);
+    const all = JSON.parse(await call('get_scraper_results',
+        {snapshot_id: 's', include_fields: ['b']}));
+    assert.equal(all.data[0].b.length, 4001);
+});
+

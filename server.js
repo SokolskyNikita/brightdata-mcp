@@ -17,6 +17,7 @@ import {my_scrapers} from './my_scrapers.js';
 import {sophie_assistant_tool, ask_sophie} from './sophie_assistant.js';
 import {parse_google_search_response} from './search_utils.js';
 import {first_success} from './first_success.js';
+import {tidy_markdown} from './md_tidy.js';
 import {create_stats, describe_stats} from './stats.js';
 import {dataset_id_schema, filter_schema, metadata_to_fields, FILTER_OPERATORS}
     from './search_dataset_schema.js';
@@ -296,6 +297,17 @@ async function google_search({query, cursor, tool, ctx, retry_ms}){
     });
 }
 
+// fork: shared by scrape_as_markdown and scrape_batch (see md_tidy.js)
+const markdown_options = {
+    links: z.boolean().optional().default(true).describe('Keep links '
+        +'(default: true). false returns only the text, about half the '
+        +'size: use it when you do not need the URLs.'),
+    disable_md_optimization: z.boolean().optional().default(false)
+        .describe('Return the markdown as converted, without removing '
+        +'escapes, link tooltips, links to anchors on the page and the '
+        +'page\'s own domain from its links (default: false).'),
+};
+
 // fork: Google only, with no country option; Bing and Yandex came back
 // as 50-90k chars of raw page and geo-targeted queries often failed
 addTool({
@@ -325,7 +337,8 @@ addTool({
 addTool({
     name: 'scrape_as_markdown',
     description: 'Fetch one web page through Bright Data and return its '
-    +'text, with links and code kept and other formatting removed. The '
+    +'text, with links and code kept and other formatting removed (links: '
+    +'false for text only). The '
     +'default way to read a page: faster and more reliable than the '
     +'browser. Use scrape_batch for 2 to 5 URLs, and the scraping_browser_* '
     +'tools only if this returns empty or blocked content or the page needs '
@@ -337,9 +350,13 @@ addTool({
         destructiveHint: false,
         openWorldHint: true,
     },
-    parameters: z.object({url: z.string().url()
-        .describe('Full URL of the page')}),
-    execute: tool_fn('scrape_as_markdown', async({url}, ctx)=>{
+    parameters: z.object({
+        url: z.string().url().describe('Full URL of the page'),
+        ...markdown_options,
+    }),
+    execute: tool_fn('scrape_as_markdown', async({url, links,
+        disable_md_optimization}, ctx)=>
+    {
         let response = await base_request({
             url: 'https://api.brightdata.com/request',
             method: 'POST',
@@ -356,7 +373,8 @@ addTool({
             .use(strip, {keep: ['link', 'linkReference', 'code',
                 'inlineCode']})
             .process(response.data);
-        return minified_data.value;
+        return tidy_markdown(minified_data.value, {page_url: url, links,
+            optimize: !disable_md_optimization});
     }),
 });
 
@@ -413,9 +431,11 @@ addTool({
    },
    parameters: z.object({
        urls: z.array(z.string().url()).min(1).max(5)
-           .describe('Full URLs of the pages, at most 5')
+           .describe('Full URLs of the pages, at most 5'),
+       ...markdown_options,
    }),
-   execute: tool_fn('scrape_batch', async ({urls}, ctx)=>{
+   execute: tool_fn('scrape_batch', async ({urls, links,
+       disable_md_optimization}, ctx)=>{
        const scrapePromises = urls.map(url =>
            base_request({
                url: 'https://api.brightdata.com/request',
@@ -430,10 +450,11 @@ addTool({
                responseType: 'text',
            }).then(async response=>({
                url,
-               content: (await remark()
+               content: tidy_markdown((await remark()
                    .use(strip, {keep: ['link', 'linkReference', 'code',
                        'inlineCode']})
-                   .process(response.data)).value,
+                   .process(response.data)).value, {page_url: url, links,
+                   optimize: !disable_md_optimization}),
            }))
        );
 

@@ -52,6 +52,7 @@
         "scraper_tools.js",
         "first_success.js",
         "stats.js",
+        "md_tidy.js",
         "my_scrapers.js",
         "prompts.js",
         "sophie_assistant.js",
