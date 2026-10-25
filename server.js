@@ -292,6 +292,20 @@ async function google_search({query, cursor, tool, ctx, retry_ms}){
     });
 }
 
+// fork: the unlocker answers HTTP 200 both when it cannot fetch a page
+// (an empty body) and when robots.txt blocks it for an account without
+// KYC (a short refusal as the body); neither is page content. Only short
+// bodies count as a refusal, so pages that mention KYC still come through
+const check_scraped = body=>{
+    if (typeof body!='string')
+        return body;
+    if (!body.trim())
+        throw new Error('The page came back empty.');
+    if (body.length<1000 && is_blocked_page(body))
+        throw new Error('Scraping is unavailable for this page.');
+    return body;
+};
+
 // fork: shared by scrape_as_markdown and scrape_batch (see md_tidy.js)
 const markdown_options = {
     links: z.boolean().optional().default(true).describe('Keep links '
@@ -367,7 +381,7 @@ addTool({
         const minified_data = await remark()
             .use(strip, {keep: ['link', 'linkReference', 'code',
                 'inlineCode']})
-            .process(response.data);
+            .process(check_scraped(response.data));
         return tidy_markdown(minified_data.value, {page_url: url, links,
             optimize: !disable_md_optimization});
     }),
@@ -417,7 +431,7 @@ addTool({
    description: 'Fetch 2 to 5 web pages at once, like scrape_as_markdown. '
         +'Returns a JSON list in the order given: {status: "fulfilled", '
         +'value: {url, content}} for a page that worked, or {status: '
-        +'"rejected", reason} for one that failed.',
+        +'"rejected", url, reason} for one that failed.',
    annotations: {
        title: 'Scrape Batch',
        readOnlyHint: true,
@@ -448,15 +462,17 @@ addTool({
                content: tidy_markdown((await remark()
                    .use(strip, {keep: ['link', 'linkReference', 'code',
                        'inlineCode']})
-                   .process(response.data)).value, {page_url: url, links,
+                   .process(check_scraped(response.data))).value,
+                   {page_url: url, links,
                    optimize: !disable_md_optimization}),
            }))
        );
 
        const settled = await Promise.allSettled(scrapePromises);
-       const results = settled.map(result=>result.status=='fulfilled'
+       const results = settled.map((result, i)=>result.status=='fulfilled'
            ? result
-           : {status: 'rejected', reason: safe_error(result.reason, api_token)});
+           : {status: 'rejected', url: urls[i],
+               reason: safe_error(result.reason, api_token)});
        return JSON.stringify(results, null, 2);
    }),
 });
@@ -486,7 +502,7 @@ addTool({
             headers: api_headers(ctx.clientName, 'scrape_as_html'),
             responseType: 'text',
         });
-        return response.data;
+        return check_scraped(response.data);
     }),
 });
 

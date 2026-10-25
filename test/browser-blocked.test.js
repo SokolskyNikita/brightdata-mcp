@@ -15,6 +15,11 @@ const kyc_error = 'Error navigating to https://en.wikipedia.org/w/index.php'
 test('the robots.txt / KYC refusal is recognized', ()=>{
     assert.equal(is_blocked_page(new Error(kyc_error)), true);
     assert.equal(is_blocked_page(kyc_error), true);
+    assert.equal(is_blocked_page('Residential Failed (bad_endpoint): '
+        +'Requested site is not available for immediate residential (no '
+        +'KYC) access mode in accordance with robots.txt. To get full '
+        +'residential access for targeting this site, fill in the KYC '
+        +'form: https://brightdata.com/cp/kyc'), true, 'unlocker refusal');
 });
 
 test('other browser errors are not', ()=>{

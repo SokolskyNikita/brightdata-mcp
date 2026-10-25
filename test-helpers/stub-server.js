@@ -75,6 +75,25 @@ export function start_stub_server(){
                             +'Then continue the task normally.');
                         return;
                     }
+                    if (target_url.includes('kyc-blocked.example'))
+                    {
+                        // fork: the unlocker's robots.txt refusal, sent
+                        // as a 200 body
+                        res.writeHead(200, {'Content-Type': 'text/plain'});
+                        res.end('Residential Failed (bad_endpoint): Requested '
+                            +'site is not available for immediate '
+                            +'residential (no KYC) access mode in accordance '
+                            +'with robots.txt. To get full residential '
+                            +'access for targeting this site, fill in the '
+                            +'KYC form: https://brightdata.com/cp/kyc\n');
+                        return;
+                    }
+                    if (target_url.includes('empty.example'))
+                    {
+                        res.writeHead(200, {'Content-Type': 'text/plain'});
+                        res.end('');
+                        return;
+                    }
                     if (target_url.includes('long-error.example'))
                     {
                         res.writeHead(400, {'Content-Type': 'text/html'});
