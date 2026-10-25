@@ -48,7 +48,12 @@ export function create_scraper_catalog(opt = {}){
     const ttl_ms = opt.ttl_ms||DAY_MS;
     const now = opt.now||Date.now;
     let scrapers = null, loaded_at = 0;
+    // fork: a fixed list (opt.scrapers) replaces the online catalog
+    if (opt.scrapers)
+        scrapers = opt.scrapers.map(to_entry);
     const load_catalog = async({force} = {})=>{
+        if (opt.scrapers)
+            return scrapers;
         if (scrapers && !force && now()-loaded_at<ttl_ms)
             return scrapers;
         try {
@@ -104,7 +109,7 @@ export function create_scraper_catalog(opt = {}){
     const get_details = async(id, method, headers)=>{
         const entry = (await load_catalog()).find(s=>s.dataset_id==id);
         if (!entry)
-            throw new Error(`Unknown dataset_id ${id}, use search_scrapers`);
+            throw new Error(`Unknown dataset_id ${id}, use list_scrapers`);
         const {source, methods, description} = await fetch_methods(id,
             headers);
         if (!methods[method])

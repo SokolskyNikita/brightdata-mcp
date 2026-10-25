@@ -15,11 +15,11 @@ const closed = {readOnlyHint: true, destructiveHint: false,
     openWorldHint: false};
 
 const expected = {
-    search_scrapers: closed,
+    search_engine: web,
+    list_scrapers: closed,
     get_scraper_details: closed,
     get_scraper_progress: closed,
     get_scraper_results: closed,
-    refresh_scrapers: closed,
     run_scraper: web,
     scraping_browser_navigate: web,
     scraping_browser_go_back: web,

@@ -34,12 +34,12 @@
     }
   },
   "tools": [
-    {"name": "search_scrapers", "description": "Find a pre-built Bright Data scraper (Web Scraper API, 1,200+ sites) by site or data type."},
+    {"name": "search_engine", "description": "Search Google. Returns organic results as JSON (link, title, description). Ideal for finding pages and gathering current information and news."},
+    {"name": "list_scrapers", "description": "List the pre-built scrapers available here (LinkedIn, Crunchbase, PitchBook, ZoomInfo, Owler, Glassdoor, Indeed, Reddit) with their dataset_id and collection methods."},
     {"name": "get_scraper_details", "description": "Show a scraper's description, input fields, example input and main output fields for one collection method."},
     {"name": "run_scraper", "description": "Run any pre-built scraper. Waits up to 45 seconds, then returns a snapshot ID to check later."},
     {"name": "get_scraper_progress", "description": "Check the status of a scraper run."},
     {"name": "get_scraper_results", "description": "Get the records of a finished scraper run."},
-    {"name": "refresh_scrapers", "description": "Reload the list of pre-built scrapers now."},
     {"name": "scraping_browser_navigate", "description": "Navigate a scraping browser session to a new URL"},
     {"name": "scraping_browser_go_back", "description": "Go back to the previous page in the browser session"},
     {"name": "scraping_browser_go_forward", "description": "Go forward to the next page in the browser session"},

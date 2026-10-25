@@ -12,6 +12,7 @@ import {GROUPS, resolve_tool} from './tool_groups.js';
 import {create_scraper_catalog} from './scraper_catalog.js';
 import {create_scraper_run} from './scraper_run.js';
 import {scraper_tools, scraper_tool_names} from './scraper_tools.js';
+import {my_scrapers} from './my_scrapers.js';
 import {sophie_assistant_tool, ask_sophie} from './sophie_assistant.js';
 import {parse_google_search_response} from './search_utils.js';
 import {dataset_id_schema, filter_schema, metadata_to_fields, FILTER_OPERATORS}
@@ -65,9 +66,9 @@ function build_allowed_tools(groups = [], custom_tools = []){
 }
 
 const allowed_tools = build_allowed_tools(tool_groups, custom_tools);
-// fork: only the pre-built scraper and browser tools are ever served;
-// GROUPS and TOOLS can narrow this further but never add to it
-const served_tools = new Set([...scraper_tool_names,
+// fork: only search_engine, the pre-built scraper and the browser tools
+// are ever served; GROUPS and TOOLS can narrow this but never add to it
+const served_tools = new Set(['search_engine', ...scraper_tool_names,
     ...browser_tools.map(t=>t.name)]);
 function parse_rate_limit(rate_limit_str) {
     if (!rate_limit_str) 
@@ -145,10 +146,31 @@ async function ensure_required_zones(){
             headers: api_headers(),
         });
         let zones = response.data || [];
+        let has_unlocker_zone = zones.some(zone=>zone.name==unlocker_zone);
         let has_browser_zone = zones.some(zone=>zone.name==browser_zone);
-
-        // fork: only the browser zone is needed, the Web Unlocker zone
-        // serves tools this fork does not expose
+        
+        if (!has_unlocker_zone)
+        {
+            console.error(`Required zone "${unlocker_zone}" not found, `
+                +`creating it...`);
+            await axios({
+                url: 'https://api.brightdata.com/zone',
+                method: 'POST',
+                timeout: zone_timeout,
+                headers: {
+                    ...api_headers(),
+                    'Content-Type': 'application/json',
+                },
+                data: {
+                    zone: {name: unlocker_zone, type: 'unblocker'},
+                    plan: {type: 'unblocker', ub_premium: true},
+                },
+            });
+            console.error(`Zone "${unlocker_zone}" created successfully`);
+        }
+        else
+            console.error(`Required zone "${unlocker_zone}" already exists`);
+            
         if (!has_browser_zone)
         {
             console.error(`Required zone "${browser_zone}" not found, `
@@ -178,14 +200,14 @@ async function ensure_required_zones(){
 
 await ensure_required_zones();
 
-const instructions = 'Bright Data tools fetch live web data. For a known '
-    +'site (Amazon, LinkedIn, Instagram, Zillow, ...), call search_scrapers '
-    +'first, then get_scraper_details and run_scraper for structured JSON. '
+const instructions = 'Bright Data tools fetch live web data. For '
+    +'LinkedIn, company databases, Glassdoor, Indeed or Reddit, call '
+    +'list_scrapers, then get_scraper_details and run_scraper for JSON. '
     +'If run_scraper returns a snapshot_id that is still running, poll '
-    +'get_scraper_progress, then call get_scraper_results. When no '
-    +'pre-built scraper fits, use the scraping_browser_* tools: '
-    +'scraping_browser_navigate, then scraping_browser_get_text or '
-    +'scraping_browser_snapshot to read the page.';
+    +'get_scraper_progress, then call get_scraper_results. Use '
+    +'search_engine to find pages. When no scraper fits, open the page '
+    +'with scraping_browser_navigate and read it with '
+    +'scraping_browser_get_text or scraping_browser_snapshot.';
 
 let server = new FastMCP({
     name: 'Bright Data',
@@ -216,11 +238,13 @@ addTool({
     }),
 });
 
+// fork: Google only, with no country option; Bing and Yandex came back
+// as 50-90k chars of raw page and geo-targeted queries often failed
 addTool({
     name: 'search_engine',
-    description: 'Scrape search results from Google, Bing or Yandex. Returns '
-        +'SERP results in JSON or Markdown (URL, title, description),Ideal for'
-        +'gathering current information, news, and detailed search results.',
+    description: 'Search Google. Returns organic results as JSON (link, '
+        +'title, description). Ideal for finding pages and gathering '
+        +'current information and news.',
     annotations: {
         title: 'Search Engine',
         readOnlyHint: true,
@@ -229,37 +253,24 @@ addTool({
     },
     parameters: z.object({
         query: z.string(),
-        engine: z.enum(['google', 'bing', 'yandex'])
-            .optional()
-            .default('google'),
         cursor: z.string()
             .optional()
             .describe('Pagination cursor for next page'),
-        geo_location: z.string()
-            .length(2)
-            .optional()
-            .describe('2-letter country code for geo-targeted results '
-                +'(e.g., "us", "uk")'),
     }),
-    execute: tool_fn('search_engine', async({query, engine, cursor,
-        geo_location}, ctx)=>
-    {
-        const is_google = engine=='google';
-        const url = search_url(engine, query, cursor, geo_location);
+    execute: tool_fn('search_engine', async({query, cursor}, ctx)=>{
+        const url = search_url('google', query, cursor);
         let response = await base_request({
             url: 'https://api.brightdata.com/request',
             method: 'POST',
             data: {
-                url: is_google ? `${url}&brd_json=1` : url,
+                url: `${url}&brd_json=1`,
                 zone: unlocker_zone,
                 format: 'raw',
-                data_format: is_google ? 'parsed_light' : 'markdown',
+                data_format: 'parsed_light',
             },
             headers: api_headers(ctx.clientName, 'search_engine'),
             responseType: 'text',
         });
-        if (!is_google)
-            return response.data;
         return JSON.stringify(parse_google_search_response(response.data,
             'search_engine'), null, 2);
     }),
@@ -595,7 +606,8 @@ addTool({
     }),
 });
 
-for (const tool of scraper_tools({catalog: create_scraper_catalog(),
+for (const tool of scraper_tools({
+    catalog: create_scraper_catalog({scrapers: my_scrapers}),
     runner: create_scraper_run(), tool_fn,
     headers: (ctx, name)=>api_headers(ctx.clientName, name)}))
 {

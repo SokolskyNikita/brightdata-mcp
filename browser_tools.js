@@ -4,7 +4,9 @@ import {z} from 'zod';
 import axios from 'axios';
 import {Browser_session} from './browser_session.js';
 let browser_zone = process.env.BROWSER_ZONE || 'mcp_browser';
-const browser_filtered_snapshot = process.env.BROWSER_FILTERED_SNAPSHOT=='on';
+// fork: filtered snapshots by default; BROWSER_FILTERED_SNAPSHOT=off makes
+// full ones the default. Either way the filtered argument overrides it
+const browser_filtered_snapshot = process.env.BROWSER_FILTERED_SNAPSHOT!='off';
 
 let open_session;
 let open_session_country = null;
@@ -157,16 +159,18 @@ let scraping_browser_snapshot = {
     },
     parameters: z.object({
         filtered: z.boolean().optional().describe(
-            'List only buttons, links and fields (default: false). '
-            +'Saves tokens. Use true for sensitive actions (payments, '
-            +'account changes) so page text cannot pose as an element.'),
+            'List only buttons, links and fields (default: '
+            +`${browser_filtered_snapshot}). Saves tokens. Use true for `
+            +'sensitive actions (payments, account changes) so page text '
+            +'cannot pose as an element; false returns the full page tree, '
+            +'which is several times larger.'),
     }),
-    execute: async({filtered=false})=>{
+    execute: async({filtered=browser_filtered_snapshot})=>{
         const browser_session = await require_browser();
         const page = await browser_session.get_page();
         try {
             const snapshot = await browser_session.capture_snapshot(
-                {filtered: browser_filtered_snapshot || filtered});
+                {filtered});
             const lines = [
                 `Page: ${snapshot.url}`,
                 `Title: ${snapshot.title}`,
@@ -241,8 +245,11 @@ let scraping_browser_type_ref = {
         try {
             const locator = await browser_session.ref_locator({element, ref});
             await locator.fill(text);
+            // fork: press Enter on the page, not the locator; sites like
+            // Wikipedia swap the input for a new element while typing, and
+            // the old ref then never resolves (30s timeout)
             if (submit)
-                await locator.press('Enter');
+                await (await browser_session.get_page()).keyboard.press('Enter');
             const suffix = submit ? ' and submitted the form' : '';
             return 'Successfully typed "'+text+'" into element: '+element
                 +' (ref='+ref+')'+suffix;

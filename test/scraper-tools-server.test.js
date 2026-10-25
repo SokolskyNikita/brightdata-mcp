@@ -9,6 +9,7 @@ import {unwrap} from '../test-helpers/untrusted.js';
 import {start_stub_server, close_stub_server}
     from '../test-helpers/stub-server.js';
 import {scraper_tool_names} from '../scraper_tools.js';
+import {my_scrapers} from '../my_scrapers.js';
 import {tools as browser_tools} from '../browser_tools.js';
 
 const repo_root = resolve(dirname(url.fileURLToPath(import.meta.url)), '..');
@@ -36,21 +37,25 @@ test('scraper tools are on by default and run end to end', async t=>{
     const names = (await client.listTools()).tools.map(x=>x.name);
     for (const name of scraper_tool_names)
         assert.ok(names.includes(name), `${name} listed`);
-    assert.deepEqual((await call(client, 'search_scrapers',
-        {query: 'amazon'})).data.map(s=>s.dataset_id), ['gd_rev']);
+    // the fixed list is served as is; the stub's online catalog is unused
+    assert.deepEqual((await call(client, 'list_scrapers', {})).data,
+        my_scrapers);
     const bad = await call(client, 'get_scraper_details',
         {dataset_id: 'gd_nope', method: 'collect_by_url'});
     assert.ok(bad.error);
     assert.match(bad.text, /Unknown dataset_id gd_nope/);
-    const run = await call(client, 'run_scraper', {dataset_id: 'gd_rev',
-        method: 'collect_by_url', input: [{url: 'https://amazon.com/r'}]});
+    const run = await call(client, 'run_scraper',
+        {dataset_id: 'gd_l1vikfnt1wgvvqz95w', method: 'collect_by_url',
+            input: [{url: 'https://www.linkedin.com/company/x/'}]});
     assert.deepEqual(run.data, {snapshot_id: 's_1', status: 'ready',
         data: [{rating: 5}]});
     const trigger = stub.observed_requests.find(r=>r.url);
     assert.equal(trigger.headers.authorization, 'Bearer scraper-test-token');
     assert.equal(trigger.headers['x-mcp-tool'], 'run_scraper');
-    assert.deepEqual((await call(client, 'refresh_scrapers', {})).data,
-        {scrapers: 1});
+    const unlisted = await call(client, 'run_scraper', {dataset_id: 'gd_rev',
+        method: 'collect_by_url', input: [{url: 'https://amazon.com/r'}]});
+    assert.ok(unlisted.error);
+    assert.match(unlisted.text, /Unknown dataset_id gd_rev/);
 });
 
 const list_tools = async(t, extra_env)=>{
@@ -78,8 +83,8 @@ test('old groups and web_data names turn on the scraper tools', async t=>{
     }
 });
 
-const served = [...scraper_tool_names, ...browser_tools.map(t=>t.name)]
-    .sort();
+const served = ['search_engine', ...scraper_tool_names,
+    ...browser_tools.map(t=>t.name)].sort();
 
 test('no GROUPS or TOOLS serves only the scraper and browser tools',
 async t=>{
@@ -90,8 +95,10 @@ async t=>{
 test('GROUPS and TOOLS cannot turn on the other tools', async t=>{
     assert.deepEqual((await list_tools(t, {GROUPS: 'scrapers,browser',
         TOOLS: ''})).sort(), served);
+    assert.deepEqual(await list_tools(t, {GROUPS: 'geo,advanced_scraping',
+        TOOLS: 'scrape_as_markdown'}), ['search_engine']);
     // with no tool left, FastMCP does not serve tools/list at all
-    await assert.rejects(list_tools(t, {GROUPS: 'geo,advanced_scraping',
+    await assert.rejects(list_tools(t, {GROUPS: '',
         TOOLS: 'scrape_as_markdown,web_data_chatgpt_ai_insights'}),
         {code: -32601});
 });

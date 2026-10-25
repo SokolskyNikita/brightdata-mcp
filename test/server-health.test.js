@@ -12,7 +12,7 @@ const test_dir = dirname(fileURLToPath(import.meta.url));
 const repo_root = resolve(test_dir, '..');
 
 // tools this fork does not serve; nothing the model reads may name them
-const hidden = ['search_engine', 'search_engine_batch', 'scrape_as_markdown',
+const hidden = ['search_engine_batch', 'scrape_as_markdown',
     'scrape_as_html', 'scrape_batch', 'extract', 'session_stats',
     'ask_brightdata_assistant', 'list_dataset_fields', 'search_dataset',
     'chatgpt_ai_insights', 'perplexity_ai_insights'];
@@ -39,6 +39,11 @@ test('nothing the model reads mentions a tool the fork hides', async t=>{
         assert.ok(!hidden.includes(tool.name), tool.name);
         assert.doesNotMatch(JSON.stringify(tool), hidden_re, tool.name);
     }
+    const by_name = Object.fromEntries(tools.map(x=>[x.name, x]));
+    assert.deepEqual(Object.keys(by_name.search_engine.inputSchema.properties)
+        .sort(), ['cursor', 'query'], 'search_engine is Google only, no geo');
+    assert.match(by_name.scraping_browser_snapshot.inputSchema.properties
+        .filtered.description, /default: true/);
     const {prompts} = await client.listPrompts();
     assert.ok(prompts.length>0);
     for (const {name, description} of prompts)

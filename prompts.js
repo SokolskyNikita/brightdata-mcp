@@ -12,9 +12,10 @@ You have access to Bright Data tools at two tiers of cost and capability.
 Always follow this order -- do not skip ahead:
 
 STEP 1 -- Check for a pre-built scraper (fastest, structured JSON):
-  Call search_scrapers with the site or data type (e.g. "amazon product",
-  "linkedin.com"). If one matches, call get_scraper_details, then
-  run_scraper with input shaped like sample_input. If run_scraper returns
+  Call list_scrapers and pick the one for the site or data type (e.g.
+  "LinkedIn company information"). If one fits, call get_scraper_details, then
+  run_scraper with input shaped like sample_input. If you do not know the
+  URL yet, find it with search_engine first. If run_scraper returns
   a snapshot_id that is still running, poll get_scraper_progress, then
   call get_scraper_results.
 
@@ -37,7 +38,7 @@ const diagnose_scraping_approach = {
 To discover the correct Bright Data product for a new website, run this
 diagnostic:
 
-1. Call search_scrapers with the site's domain.
+1. Call list_scrapers and look for the site's domain.
    - If a scraper matches and run_scraper returns useful data -> the Web
      Scraper API is the correct integration. Stop.
    - If none matches or the results are empty -> continue to step 2.

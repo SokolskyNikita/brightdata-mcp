@@ -13,7 +13,7 @@ const setup = (runner = {})=>{
         catalog: {search: spy('search'), get_details: spy('details'),
             load_catalog: async opt=>{
                 calls.push(['load', opt]);
-                return [1, 2, 3];
+                return [{dataset_id: 'gd_1'}, {dataset_id: 'gd_2'}];
             }},
         runner: {run: spy('run'), progress: spy('progress'),
             results: spy('results'), ...runner},
@@ -48,12 +48,18 @@ test('tools pass ctx headers and return JSON', async()=>{
         {token: 'tok', tool: 'get_scraper_results'}]);
 });
 
-test('search uses the default limit, refresh forces a reload', async()=>{
+test('list_scrapers returns the whole list', async()=>{
+    const {call} = setup();
+    assert.equal(await call('list_scrapers', {}),
+        '[{"dataset_id":"gd_1"},{"dataset_id":"gd_2"}]');
+});
+
+test('run_scraper refuses a scraper that is not listed', async()=>{
     const {call, calls} = setup();
-    await call('search_scrapers', {query: 'amazon'});
-    assert.deepEqual(calls.pop().slice(0, 3), ['search', 'amazon', 10]);
-    assert.equal(await call('refresh_scrapers', {}), '{"scrapers":3}');
-    assert.deepEqual(calls.pop(), ['load', {force: true}]);
+    await assert.rejects(call('run_scraper', {dataset_id: 'gd_9',
+        method: 'collect_by_url', input: [{url: 'u'}]}),
+        /Unknown dataset_id gd_9, use list_scrapers/);
+    assert.ok(!calls.some(c=>c[0]=='run'));
 });
 
 test('run_scraper rejects an empty input list', ()=>{

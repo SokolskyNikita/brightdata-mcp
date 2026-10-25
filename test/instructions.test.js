@@ -24,7 +24,7 @@ test('server sends instructions and makes no CAPTCHA claims', async t=>{
         command: process.execPath,
         args: ['--import', './test-helpers/redirect-api.mjs', 'server.js']}));
     const instructions = client.getInstructions();
-    assert.match(instructions, /search_scrapers/);
+    assert.match(instructions, /list_scrapers/);
     assert.ok(instructions.length<=512, `${instructions.length} chars`);
     for (const {name, description} of (await client.listTools()).tools)
         assert.doesNotMatch(description, /captcha|bot detection/i, name);
