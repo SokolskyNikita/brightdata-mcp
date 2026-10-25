@@ -85,7 +85,8 @@ test('old groups and web_data names turn on the scraper tools', async t=>{
 
 const interactive = ['scraping_browser_click_ref',
     'scraping_browser_type_ref', 'scraping_browser_fill_form'];
-const served = ['search_engine', 'search_engine_batch', 'get_stats_file',
+const served = ['search_engine', 'search_engine_batch', 'scrape_as_markdown',
+    'scrape_as_html', 'scrape_batch', 'get_stats_file',
     ...scraper_tool_names,
     ...browser_tools.map(t=>t.name).filter(n=>!interactive.includes(n))]
     .sort();
@@ -98,14 +99,15 @@ async t=>{
 
 test('GROUPS and TOOLS cannot turn on the other tools', async t=>{
     assert.deepEqual((await list_tools(t, {GROUPS: 'scrapers,browser',
-        TOOLS: ''})).sort(), served.filter(n=>n!='search_engine_batch'));
+        TOOLS: ''})).sort(), served.filter(n=>!['search_engine_batch',
+            'scrape_as_html', 'scrape_batch'].includes(n)));
     assert.deepEqual((await list_tools(t, {GROUPS: 'geo,advanced_scraping',
-        TOOLS: 'scrape_as_markdown'})).sort(),
-        ['get_stats_file', 'search_engine', 'search_engine_batch']);
+        TOOLS: ''})).sort(), ['get_stats_file', 'scrape_as_html',
+        'scrape_as_markdown', 'scrape_batch', 'search_engine',
+        'search_engine_batch']);
     // get_stats_file is served whatever GROUPS and TOOLS say
     assert.deepEqual(await list_tools(t, {GROUPS: '',
-        TOOLS: 'scrape_as_markdown,web_data_chatgpt_ai_insights'}),
-        ['get_stats_file']);
+        TOOLS: 'extract,web_data_chatgpt_ai_insights'}), ['get_stats_file']);
 });
 
 test('GROUPS limits the tools to that group', async t=>{

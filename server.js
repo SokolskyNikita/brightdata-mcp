@@ -69,13 +69,14 @@ function build_allowed_tools(groups = [], custom_tools = []){
 
 const allowed_tools = build_allowed_tools(tool_groups, custom_tools);
 // fork: only the Google search tools, get_stats_file, the pre-built
-// scraper and the browser tools
+// scraper, the scrape_* and the browser tools
 // are ever served; GROUPS and TOOLS can narrow this but never add to it.
 // The browser only reads pages: the tools that click, type or fill forms
 // are left out
 const interactive_browser_tools = ['scraping_browser_click_ref',
     'scraping_browser_type_ref', 'scraping_browser_fill_form'];
 const served_tools = new Set(['search_engine', 'search_engine_batch',
+    'scrape_as_markdown', 'scrape_as_html', 'scrape_batch',
     'get_stats_file', ...scraper_tool_names,
     ...browser_tools.map(t=>t.name)
         .filter(n=>!interactive_browser_tools.includes(n))]);
@@ -211,12 +212,12 @@ await ensure_required_zones();
 
 const instructions = 'Bright Data tools fetch live web data. For '
     +'LinkedIn, company databases, Glassdoor or Indeed, call '
-    +'list_scrapers, then get_scraper_details and run_scraper for JSON. '
-    +'If run_scraper returns a snapshot_id that is still running, poll '
-    +'get_scraper_progress, then call get_scraper_results. Use '
-    +'search_engine to find pages. When no scraper fits, open the page '
-    +'with scraping_browser_navigate and read it with '
-    +'scraping_browser_get_text or scraping_browser_snapshot.';
+    +'list_scrapers, then get_scraper_details and run_scraper for JSON; '
+    +'if it is still running, poll get_scraper_progress, then call '
+    +'get_scraper_results. Use search_engine to find pages. Otherwise read '
+    +'pages with scrape_as_markdown, or scrape_batch for several URLs. Use '
+    +'the scraping_browser_* tools only when scraping fails or the page '
+    +'needs JavaScript or scrolling.';
 
 let server = new FastMCP({
     name: 'Bright Data',

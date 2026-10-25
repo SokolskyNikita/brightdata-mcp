@@ -5,10 +5,11 @@ const web_scraping_strategy = {
     name: 'web_scraping_strategy',
     description: 'Decision tree for picking the right Bright Data tool. '
         +'Invoke at the start of any scraping session to learn the correct '
-        +'tool selection order (pre-built scrapers -> Browser API).',
+        +'tool selection order '
+        +'(pre-built scrapers -> scrape_as_markdown -> Browser API).',
     arguments: [],
     load: ()=>`\
-You have access to Bright Data tools at two tiers of cost and capability.
+You have access to Bright Data tools at three tiers of cost and capability.
 Always follow this order -- do not skip ahead:
 
 STEP 1 -- Check for a pre-built scraper (fastest, structured JSON):
@@ -19,20 +20,26 @@ STEP 1 -- Check for a pre-built scraper (fastest, structured JSON):
   a snapshot_id that is still running, poll get_scraper_progress, then
   call get_scraper_results.
 
-STEP 2 -- If no scraper matches, use the browser:
+STEP 2 -- If no scraper matches, use scrape_as_markdown (default):
+  Use scrape_batch for several URLs. Retry once if the first attempt
+  returns empty or blocked content.
+
+STEP 3 -- If scrape_as_markdown fails twice, use the browser:
   Call scraping_browser_navigate on the URL, then
   scraping_browser_get_text or scraping_browser_snapshot to read it.
   Use scraping_browser_scroll for pages that load more content as you
-  scroll.
+  scroll. This is slower -- do not use it as a first attempt.
 
-NEVER use the browser tools when a pre-built scraper covers the site.`,
+NEVER use the browser tools for sites scrape_as_markdown can handle.
+NEVER use scrape_as_markdown when a pre-built scraper covers the site.`,
 };
 
 const diagnose_scraping_approach = {
     name: 'diagnose_scraping_approach',
     description: 'Run a two-step diagnostic to discover the correct '
         +'Bright Data product for a new website. Tries a pre-built scraper '
-        +'first, then Browser API, then reports which succeeded.',
+        +'first, then scrape_as_markdown, then Browser API, then reports '
+        +'which succeeded.',
     arguments: [],
     load: ()=>`\
 To discover the correct Bright Data product for a new website, run this
@@ -43,11 +50,17 @@ diagnostic:
      Scraper API is the correct integration. Stop.
    - If none matches or the results are empty -> continue to step 2.
 
-2. Try scraping_browser_navigate + scraping_browser_snapshot on the
-   target URL.
+2. Try scrape_as_markdown on the target URL.
+   - If it returns useful content -> scraping is the correct
+     integration. Stop.
+   - If it returns empty, blocked, or low-quality content -> continue
+     to step 3.
+
+3. Try scraping_browser_navigate + scraping_browser_snapshot on the
+   same URL.
    - If it returns useful content -> Browser API is the correct
      integration. Stop.
-   - If both fail -> report to the user that the target may require
+   - If all fail -> report to the user that the target may require
      custom configuration.
 
 Report which approach succeeded and recommend it as the integration method.

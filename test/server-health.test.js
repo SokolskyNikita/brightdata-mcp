@@ -12,8 +12,7 @@ const test_dir = dirname(fileURLToPath(import.meta.url));
 const repo_root = resolve(test_dir, '..');
 
 // tools this fork does not serve; nothing the model reads may name them
-const hidden = ['scrape_as_markdown',
-    'scrape_as_html', 'scrape_batch', 'extract', 'session_stats',
+const hidden = ['extract', 'session_stats',
     'ask_brightdata_assistant', 'list_dataset_fields', 'search_dataset',
     'chatgpt_ai_insights', 'perplexity_ai_insights',
     'scraping_browser_click_ref', 'scraping_browser_type_ref',
