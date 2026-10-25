@@ -36,7 +36,7 @@ export function scraper_tools({catalog, runner, tool_fn, headers}){
     return [
         tool('list_scrapers', 'List Scrapers', 'List every Bright Data '
             +'pre-built scraper available here (LinkedIn, Crunchbase, '
-            +'PitchBook, ZoomInfo, Owler, Glassdoor, Indeed, Reddit). Returns '
+            +'PitchBook, ZoomInfo, Owler, Glassdoor, Indeed). Returns '
             +'dataset_id, name, domain and collection_methods. Next: call '
             +'get_scraper_details with a dataset_id and one method.',
         {}, ()=>catalog.load_catalog()),

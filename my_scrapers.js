@@ -61,15 +61,4 @@ export const my_scrapers = [
         domain: 'indeed.com',
         collection_methods: ['collect_by_url', 'discover_by_keyword',
             'discover_by_url']},
-    // Reddit
-    {dataset_id: 'gd_lvz8ah06191smkebj4', name: 'Reddit- Posts',
-        domain: 'reddit.com',
-        collection_methods: ['collect_by_url', 'discover_by_author_url',
-            'discover_by_keyword', 'discover_by_subreddit_url']},
-    {dataset_id: 'gd_lvzdpsdlw09j6t702', name: 'Reddit - Comments',
-        domain: 'reddit.com',
-        collection_methods: ['collect_by_url']},
-    {dataset_id: 'gd_mgnh0p8w16o65lmhp', name: 'Reddit - Profiles',
-        domain: 'reddit.com',
-        collection_methods: ['collect_by_url']},
 ];

@@ -201,7 +201,7 @@ async function ensure_required_zones(){
 await ensure_required_zones();
 
 const instructions = 'Bright Data tools fetch live web data. For '
-    +'LinkedIn, company databases, Glassdoor, Indeed or Reddit, call '
+    +'LinkedIn, company databases, Glassdoor or Indeed, call '
     +'list_scrapers, then get_scraper_details and run_scraper for JSON. '
     +'If run_scraper returns a snapshot_id that is still running, poll '
     +'get_scraper_progress, then call get_scraper_results. Use '
