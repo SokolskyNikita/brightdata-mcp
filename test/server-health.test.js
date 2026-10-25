@@ -5,36 +5,46 @@ import {fileURLToPath} from 'node:url';
 import {dirname, resolve} from 'node:path';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {StdioClientTransport} from '@modelcontextprotocol/sdk/client/stdio.js';
+import {start_stub_server, close_stub_server}
+    from '../test-helpers/stub-server.js';
 
 const test_dir = dirname(fileURLToPath(import.meta.url));
 const repo_root = resolve(test_dir, '..');
 
-test('MCP serves session_stats tool over stdio', async()=>{
-    const env = {
-        ...process.env,
-        API_TOKEN: 'dummy-token',
-    };
-    const client = new Client(
-        {name: 'server-health-test', version: '0.0.1'},
+// tools this fork does not serve; nothing the model reads may name them
+const hidden = ['search_engine', 'search_engine_batch', 'scrape_as_markdown',
+    'scrape_as_html', 'scrape_batch', 'extract', 'session_stats',
+    'ask_brightdata_assistant', 'list_dataset_fields', 'search_dataset',
+    'chatgpt_ai_insights', 'perplexity_ai_insights'];
+const hidden_re = new RegExp(`\\b(${hidden.join('|')})\\b|Web Unlocker`);
+
+test('nothing the model reads mentions a tool the fork hides', async t=>{
+    const stub = await start_stub_server();
+    t.after(()=>close_stub_server(stub));
+    const env = {...process.env, API_TOKEN: 'server-health-token',
+        __BRD_TEST_STUB_URL: `http://127.0.0.1:${stub.address().port}`};
+    delete env.GROUPS;
+    delete env.TOOLS;
+    const client = new Client({name: 'server-health-test', version: '0'},
         {capabilities: {tools: {}}});
-    const transport = new StdioClientTransport({
+    t.after(()=>client.close());
+    await client.connect(new StdioClientTransport({cwd: repo_root, env,
         command: process.execPath,
-        args: ['server.js'],
-        cwd: repo_root,
-        env,
-    });
-    try {
-        await client.connect(transport);
-        const tools = await client.listTools();
-        assert.ok(tools.tools.some(tool=>tool.name=='session_stats'),
-            'session_stats tool available');
-        const result = await client.callTool({name: 'session_stats',
-            arguments: {}});
-        const text_block = result.content.find(block=>block.type=='text');
-        assert.ok(text_block, 'session_stats returned text content');
-        assert.match(text_block.text, /Tool calls this session:/,
-            'session_stats responded with usage summary');
-    } finally {
-        await client.close();
+        args: ['--import', './test-helpers/redirect-api.mjs', 'server.js']}));
+    assert.doesNotMatch(client.getInstructions(), hidden_re, 'instructions');
+    const {tools} = await client.listTools();
+    assert.ok(tools.length>0);
+    for (const tool of tools)
+    {
+        assert.ok(!hidden.includes(tool.name), tool.name);
+        assert.doesNotMatch(JSON.stringify(tool), hidden_re, tool.name);
+    }
+    const {prompts} = await client.listPrompts();
+    assert.ok(prompts.length>0);
+    for (const {name, description} of prompts)
+    {
+        assert.doesNotMatch(description, hidden_re, name);
+        const {messages} = await client.getPrompt({name});
+        assert.doesNotMatch(JSON.stringify(messages), hidden_re, name);
     }
 });

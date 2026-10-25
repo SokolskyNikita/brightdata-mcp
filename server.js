@@ -11,7 +11,7 @@ import {html_to_text, redact_url_creds, safe_error} from './safe_error.js';
 import {GROUPS, resolve_tool} from './tool_groups.js';
 import {create_scraper_catalog} from './scraper_catalog.js';
 import {create_scraper_run} from './scraper_run.js';
-import {scraper_tools} from './scraper_tools.js';
+import {scraper_tools, scraper_tool_names} from './scraper_tools.js';
 import {sophie_assistant_tool, ask_sophie} from './sophie_assistant.js';
 import {parse_google_search_response} from './search_utils.js';
 import {dataset_id_schema, filter_schema, metadata_to_fields, FILTER_OPERATORS}
@@ -65,6 +65,10 @@ function build_allowed_tools(groups = [], custom_tools = []){
 }
 
 const allowed_tools = build_allowed_tools(tool_groups, custom_tools);
+// fork: only the pre-built scraper and browser tools are ever served;
+// GROUPS and TOOLS can narrow this further but never add to it
+const served_tools = new Set([...scraper_tool_names,
+    ...browser_tools.map(t=>t.name)]);
 function parse_rate_limit(rate_limit_str) {
     if (!rate_limit_str) 
         return null;
@@ -141,31 +145,10 @@ async function ensure_required_zones(){
             headers: api_headers(),
         });
         let zones = response.data || [];
-        let has_unlocker_zone = zones.some(zone=>zone.name==unlocker_zone);
         let has_browser_zone = zones.some(zone=>zone.name==browser_zone);
-        
-        if (!has_unlocker_zone)
-        {
-            console.error(`Required zone "${unlocker_zone}" not found, `
-                +`creating it...`);
-            await axios({
-                url: 'https://api.brightdata.com/zone',
-                method: 'POST',
-                timeout: zone_timeout,
-                headers: {
-                    ...api_headers(),
-                    'Content-Type': 'application/json',
-                },
-                data: {
-                    zone: {name: unlocker_zone, type: 'unblocker'},
-                    plan: {type: 'unblocker', ub_premium: true},
-                },
-            });
-            console.error(`Zone "${unlocker_zone}" created successfully`);
-        }
-        else
-            console.error(`Required zone "${unlocker_zone}" already exists`);
-            
+
+        // fork: only the browser zone is needed, the Web Unlocker zone
+        // serves tools this fork does not expose
         if (!has_browser_zone)
         {
             console.error(`Required zone "${browser_zone}" not found, `
@@ -198,11 +181,11 @@ await ensure_required_zones();
 const instructions = 'Bright Data tools fetch live web data. For a known '
     +'site (Amazon, LinkedIn, Instagram, Zillow, ...), call search_scrapers '
     +'first, then get_scraper_details and run_scraper for structured JSON. '
-    +'Otherwise use scrape_as_markdown, or scrape_batch for several URLs. '
-    +'Use the scraping_browser_* tools only when the task needs clicks, '
-    +'typing or screenshots. If run_scraper returns a snapshot_id that is '
-    +'still running, poll get_scraper_progress, then call '
-    +'get_scraper_results.';
+    +'If run_scraper returns a snapshot_id that is still running, poll '
+    +'get_scraper_progress, then call get_scraper_results. When no '
+    +'pre-built scraper fits, use the scraping_browser_* tools: '
+    +'scraping_browser_navigate, then scraping_browser_get_text or '
+    +'scraping_browser_snapshot to read the page.';
 
 let server = new FastMCP({
     name: 'Bright Data',
@@ -212,6 +195,8 @@ let server = new FastMCP({
 let debug_stats = {tool_calls: {}, session_calls: 0, call_timestamps: []};
 
 const addTool = (tool) => {
+    if (!served_tools.has(tool.name))
+        return;
     if (allowed_tools.size>0 && !allowed_tools.has(tool.name))
         return;
     server.addTool(tool);

@@ -14,8 +14,14 @@ const route = (state, req, res, body)=>{
     state.paths.push(path);
     state.tags.push([req.headers['x-mcp-dataset-id'],
         req.headers['x-mcp-method']]);
-    if (state.fail[path.split('/')[3]])
-        return send(res, state.fail[path.split('/')[3]], {error: 'boom'});
+    const fail = state.fail[path.split('/')[3]];
+    if (fail && state.fail_html)
+    {
+        res.writeHead(fail, {'Content-Type': 'text/html'});
+        return void res.end(state.fail_html);
+    }
+    if (fail)
+        return send(res, fail, {error: 'boom'});
     if (path=='/datasets/v3/trigger')
     {
         state.trigger = {params: Object.fromEntries(url.searchParams),
@@ -151,6 +157,23 @@ for (const [step, call] of [
         });
     }
 }
+
+test('an HTML error page is reduced to its text and capped', async t=>{
+    const {sr, state} = await setup(t);
+    state.fail.trigger = 502;
+    state.fail_html = '<html><head><title>502 Bad Gateway</title>'
+        +'<style>h1{color:red}</style></head><body><h1>Bad Gateway</h1>'
+        +'<p>'+'y'.repeat(3000)+'</p></body></html>';
+    const prefix = 'trigger failed (HTTP 502): ';
+    await assert.rejects(sr.run({dataset_id: 'gd_1',
+        method: 'collect_by_url', input: {}}), err=>{
+        assert.ok(err.message.startsWith(prefix
+            +'502 Bad Gateway Bad Gateway y'), err.message.slice(0, 80));
+        assert.equal(err.message.length, prefix.length+2000);
+        assert.doesNotMatch(err.message, /<|color:red/);
+        return true;
+    });
+});
 
 test('trigger without snapshot_id is an error', async t=>{
     const {sr, state} = await setup(t);

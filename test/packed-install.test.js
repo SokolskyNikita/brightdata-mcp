@@ -31,8 +31,10 @@ test('the packed npm package installs, starts and lists its tools',
             args: [join(dir, 'node_modules/@brightdata/mcp/server.js')],
             env: {...clean_env, API_TOKEN: 'packed-install-test'}}));
         const {tools} = await client.listTools();
-        assert.ok(tools.some(x=>x.name=='ask_brightdata_assistant'),
-            'ask_brightdata_assistant (sophie_assistant.js) is served');
+        const names = tools.map(x=>x.name);
+        assert.ok(names.includes('run_scraper'), 'scraper tools are served');
+        assert.ok(names.includes('scraping_browser_navigate'),
+            'browser tools are served');
     } finally {
         await client.close();
     }

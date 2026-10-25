@@ -9,6 +9,7 @@ import {unwrap} from '../test-helpers/untrusted.js';
 import {start_stub_server, close_stub_server}
     from '../test-helpers/stub-server.js';
 import {scraper_tool_names} from '../scraper_tools.js';
+import {tools as browser_tools} from '../browser_tools.js';
 
 const repo_root = resolve(dirname(url.fileURLToPath(import.meta.url)), '..');
 
@@ -75,19 +76,24 @@ test('old groups and web_data names turn on the scraper tools', async t=>{
         assert.ok(names.includes('run_scraper'), JSON.stringify(env));
         assert.ok(!names.some(n=>n.startsWith('web_data_')));
     }
-    assert.ok((await list_tools(t, {GROUPS: 'geo', TOOLS: ''}))
-        .includes('chatgpt_ai_insights'));
-    assert.deepEqual(await list_tools(t, {GROUPS: '',
-        TOOLS: 'web_data_chatgpt_ai_insights'}), ['chatgpt_ai_insights']);
 });
 
-test('no GROUPS or TOOLS turns on every tool', async t=>{
-    const names = await list_tools(t, {GROUPS: '', TOOLS: ''});
-    for (const name of ['scraping_browser_navigate', 'scrape_as_html',
-        'session_stats', 'run_scraper'])
-    {
-        assert.ok(names.includes(name), `${name} listed`);
-    }
+const served = [...scraper_tool_names, ...browser_tools.map(t=>t.name)]
+    .sort();
+
+test('no GROUPS or TOOLS serves only the scraper and browser tools',
+async t=>{
+    assert.deepEqual((await list_tools(t, {GROUPS: '', TOOLS: ''})).sort(),
+        served);
+});
+
+test('GROUPS and TOOLS cannot turn on the other tools', async t=>{
+    assert.deepEqual((await list_tools(t, {GROUPS: 'scrapers,browser',
+        TOOLS: ''})).sort(), served);
+    // with no tool left, FastMCP does not serve tools/list at all
+    await assert.rejects(list_tools(t, {GROUPS: 'geo,advanced_scraping',
+        TOOLS: 'scrape_as_markdown,web_data_chatgpt_ai_insights'}),
+        {code: -32601});
 });
 
 test('GROUPS limits the tools to that group', async t=>{
