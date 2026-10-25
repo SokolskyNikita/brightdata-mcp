@@ -145,9 +145,7 @@ let scraping_browser_snapshot = {
         'Capture an ARIA snapshot of the current page showing all interactive '
         +'elements with their refs.',
         'This provides accurate element references that can be used with '
-        +'ref-based tools.',
-        'Use this before interacting with elements to get proper refs instead '
-        +'of guessing selectors.',
+        +'scraping_browser_scroll_to_ref and scraping_browser_wait_for_ref.',
         'A filtered snapshot does not include page text; If necessary, call '
         +'scraping_browser_get_text to read it.',
     ].join('\n'),

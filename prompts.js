@@ -22,8 +22,8 @@ STEP 1 -- Check for a pre-built scraper (fastest, structured JSON):
 STEP 2 -- If no scraper matches, use the browser:
   Call scraping_browser_navigate on the URL, then
   scraping_browser_get_text or scraping_browser_snapshot to read it.
-  Use scraping_browser_click_ref, scraping_browser_type_ref and
-  scraping_browser_fill_form for pages that need interaction.
+  Use scraping_browser_scroll for pages that load more content as you
+  scroll.
 
 NEVER use the browser tools when a pre-built scraper covers the site.`,
 };

@@ -15,7 +15,9 @@ const repo_root = resolve(test_dir, '..');
 const hidden = ['search_engine_batch', 'scrape_as_markdown',
     'scrape_as_html', 'scrape_batch', 'extract', 'session_stats',
     'ask_brightdata_assistant', 'list_dataset_fields', 'search_dataset',
-    'chatgpt_ai_insights', 'perplexity_ai_insights'];
+    'chatgpt_ai_insights', 'perplexity_ai_insights',
+    'scraping_browser_click_ref', 'scraping_browser_type_ref',
+    'scraping_browser_fill_form'];
 const hidden_re = new RegExp(`\\b(${hidden.join('|')})\\b|Web Unlocker`);
 
 test('nothing the model reads mentions a tool the fork hides', async t=>{

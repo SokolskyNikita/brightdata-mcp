@@ -67,9 +67,14 @@ function build_allowed_tools(groups = [], custom_tools = []){
 
 const allowed_tools = build_allowed_tools(tool_groups, custom_tools);
 // fork: only search_engine, the pre-built scraper and the browser tools
-// are ever served; GROUPS and TOOLS can narrow this but never add to it
+// are ever served; GROUPS and TOOLS can narrow this but never add to it.
+// The browser only reads pages: the tools that click, type or fill forms
+// are left out
+const interactive_browser_tools = ['scraping_browser_click_ref',
+    'scraping_browser_type_ref', 'scraping_browser_fill_form'];
 const served_tools = new Set(['search_engine', ...scraper_tool_names,
-    ...browser_tools.map(t=>t.name)]);
+    ...browser_tools.map(t=>t.name)
+        .filter(n=>!interactive_browser_tools.includes(n))]);
 function parse_rate_limit(rate_limit_str) {
     if (!rate_limit_str) 
         return null;
