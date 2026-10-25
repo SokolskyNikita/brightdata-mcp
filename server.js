@@ -302,7 +302,7 @@ const check_scraped = body=>{
     if (!body.trim())
         throw new Error('The page came back empty.');
     if (body.length<1000 && is_blocked_page(body))
-        throw new Error('Scraping is unavailable for this page.');
+        throw new Error(blocked_page_text);
     return body;
 };
 

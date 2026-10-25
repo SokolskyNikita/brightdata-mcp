@@ -32,6 +32,8 @@ test('other browser errors are not', ()=>{
 });
 
 test('the replacement message is short and names no KYC', ()=>{
+    assert.equal(blocked_page_text, 'BrightData MCP was unable to open this '
+        +'page; please try your local browser instead');
     assert.ok(blocked_page_text.length<100);
     assert.doesNotMatch(blocked_page_text, /kyc|robots/i);
 });

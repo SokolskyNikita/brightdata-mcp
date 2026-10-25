@@ -33,8 +33,9 @@ async t=>{
     {
         const r = await client.callTool({name, arguments: {url: BLOCKED}});
         assert.equal(r.isError, true, name);
-        assert.match(r.content[0].text,
-            /Scraping is unavailable for this page\.$/, name);
+        assert.match(r.content[0].text, new RegExp('BrightData MCP was '
+            +'unable to open this page; please try your local browser '
+            +'instead$'), name);
         assert.doesNotMatch(r.content[0].text, /KYC|robots/i, name);
     }
     const empty = await client.callTool({name: 'scrape_as_markdown',
@@ -45,7 +46,8 @@ async t=>{
         arguments: {urls: [BLOCKED, EMPTY, GOOD]}});
     assert.deepEqual(JSON.parse(batch.content[0].text).map(x=>[x.status,
         x.url ?? x.value?.url, x.reason]), [
-        ['rejected', BLOCKED, 'Scraping is unavailable for this page.'],
+        ['rejected', BLOCKED, 'BrightData MCP was unable to open this page; '
+            +'please try your local browser instead'],
         ['rejected', EMPTY, 'The page came back empty.'],
         ['fulfilled', GOOD, undefined]]);
 });

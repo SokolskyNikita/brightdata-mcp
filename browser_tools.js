@@ -565,11 +565,13 @@ let scraping_browser_fill_form = {
 // fork: Bright Data refuses pages that robots.txt disallows unless the
 // account passed KYC, with a long error about KYC applications (the
 // browser) or a "Residential Failed (bad_endpoint)" body (the unlocker).
-// The model only needs to know the page cannot be opened
+// The model only needs to know the page cannot be opened here, and that a
+// browser on the user's machine (no robots.txt rule) can open it
 const blocked_re = new RegExp('restricted in accordance with robots\\.txt'
     +'|kyc-verification|access mode in accordance with robots\\.txt'
     +'|brightdata\\.com/cp/kyc', 'i');
-export const blocked_page_text = 'The browser is unavailable for this page.';
+export const blocked_page_text = 'BrightData MCP was unable to open this '
+    +'page; please try your local browser instead';
 export const is_blocked_page = e=>blocked_re.test(String(e?.message ?? e));
 
 export const tools = [
