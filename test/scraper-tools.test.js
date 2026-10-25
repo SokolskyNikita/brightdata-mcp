@@ -92,7 +92,11 @@ test('trim_records leaves out fields over 4,000 chars and says which', ()=>{
     assert.deepEqual(out.data, [{name: 'A', small: 'y'.repeat(3000)},
         {name: 'B'}]);
     assert.deepEqual(out.omitted_fields, {updates: 5002+4502});
-    assert.match(out.omitted_note, /include_fields/);
+    assert.equal(out.omitted_note, 'Fields over 4,000 characters were left '
+        +'out; omitted_fields shows their total size in characters. To get '
+        +'them without running the scraper again, call get_scraper_results '
+        +'with snapshot_id "s" and include_fields ["updates"], or ["*"] for '
+        +'every field.');
     assert.equal(trim_records(res, ['updates']).data[0].updates.length,
         5000);
     assert.equal(trim_records(res, ['*']), res);

@@ -43,9 +43,13 @@ export const trim_records = (res, include = [])=>{
     });
     if (!Object.keys(omitted).length)
         return res;
+    const example = JSON.stringify(Object.keys(omitted).slice(0, 1));
     return {...res, data, omitted_fields: omitted, omitted_note: 'Fields '
-        +'over 4,000 characters were left out (total characters shown); '
-        +'pass include_fields to get them.'};
+        +'over 4,000 characters were left out; omitted_fields shows their '
+        +'total size in characters. To get them without running the '
+        +'scraper again, call get_scraper_results with snapshot_id '
+        +`"${res.snapshot_id}" and include_fields ${example}, or ["*"] for `
+        +'every field.'};
 };
 
 // fork: names only unless asked; the descriptions were 92% of the reply
