@@ -50,6 +50,7 @@
         "scraper_run.js",
         "safe_error.js",
         "scraper_tools.js",
+        "first_success.js",
         "my_scrapers.js",
         "prompts.js",
         "sophie_assistant.js",

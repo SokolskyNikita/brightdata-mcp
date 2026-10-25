@@ -15,6 +15,7 @@ import {scraper_tools, scraper_tool_names} from './scraper_tools.js';
 import {my_scrapers} from './my_scrapers.js';
 import {sophie_assistant_tool, ask_sophie} from './sophie_assistant.js';
 import {parse_google_search_response} from './search_utils.js';
+import {first_success} from './first_success.js';
 import {dataset_id_schema, filter_schema, metadata_to_fields, FILTER_OPERATORS}
     from './search_dataset_schema.js';
 import {createRequire} from 'node:module';
@@ -262,22 +263,44 @@ addTool({
             .optional()
             .describe('Pagination cursor for next page'),
     }),
+    // fork: about 1 in 3 searches fails (HTTP 200 with x-brd-status-code
+    // 502 or 429) or hangs, so one retry starts as soon as the first
+    // request fails, or after 15s if it is still running; the first good
+    // result wins and the other request is aborted
     execute: tool_fn('search_engine', async({query, cursor}, ctx)=>{
         const url = search_url('google', query, cursor);
-        let response = await base_request({
-            url: 'https://api.brightdata.com/request',
-            method: 'POST',
-            data: {
-                url: `${url}&brd_json=1`,
-                zone: unlocker_zone,
-                format: 'raw',
-                data_format: 'parsed_light',
-            },
-            headers: api_headers(ctx.clientName, 'search_engine'),
-            responseType: 'text',
+        const result = await first_success(async(signal, n)=>{
+            const response = await axios({
+                url: 'https://api.brightdata.com/request',
+                method: 'POST',
+                data: {
+                    url: `${url}&brd_json=1`,
+                    zone: unlocker_zone,
+                    format: 'raw',
+                    data_format: 'parsed_light',
+                },
+                headers: api_headers(ctx.clientName, 'search_engine'),
+                responseType: 'text',
+                timeout: base_timeout,
+                signal,
+            });
+            const brd_status = response.headers?.['x-brd-status-code'];
+            if (brd_status && brd_status!='200')
+            {
+                throw new Error('Bright Data could not get the search '
+                    +`results (status ${brd_status})`);
+            }
+            return parse_google_search_response(response.data,
+                'search_engine');
+        }, {
+            delays_ms: [0, 15000],
+            // Bright Data's own 4xx (bad token, zone, usage limit) will
+            // not change on a second try
+            is_final: e=>e.response?.status>=400 && e.response.status<500,
+            on_error: (e, n)=>console.error('[search_engine] attempt %d '
+                +'failed: %s', n+1, redact_url_creds(e.message)),
         });
-        return JSON.stringify(parse_google_search_response(response.data,
-            'search_engine'), null, 2);
+        return JSON.stringify(result, null, 2);
     }),
 });
 
