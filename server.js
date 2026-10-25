@@ -6,7 +6,6 @@ import axios from 'axios';
 import {tools as browser_tools, is_blocked_page, blocked_page_text}
     from './browser_tools.js';
 import prompts from './prompts.js';
-import {gate_page_content, refusal_text} from './content_gate.js';
 import {wrap_untrusted} from './untrusted_content.js';
 import {html_to_text, redact_url_creds, safe_error} from './safe_error.js';
 import {GROUPS, resolve_tool} from './tool_groups.js';
@@ -33,10 +32,6 @@ const base_timeout = process.env.BASE_TIMEOUT
     ? parseInt(process.env.BASE_TIMEOUT, 10) * 1000 : 0;
 const base_max_retries = Math.min(
     parseInt(process.env.BASE_MAX_RETRIES || '0', 10), 3);
-// Tools whose result is page-derived content. Their return passes through the
-// content gate (see content_gate.js); every other tool is untouched.
-const page_content_tools = new Set(['scrape_as_markdown', 'search_engine',
-    'extract', 'scrape_batch', 'search_engine_batch']);
 // Tools that return attacker-controllable external web content. Their
 // output is wrapped as untrusted data so the model never treats embedded
 // text as instructions (indirect prompt injection). Scraper, dataset and
@@ -872,16 +867,10 @@ function tool_fn(name, fn){
             tool_meta: {},
         };
         try {
+            // fork: no content gate; upstream's content_gate.js withheld
+            // pages that mention MCP configuration (setup docs included) and
+            // could not ask the user in clients without elicitation
             let result = await fn(data, extended_ctx);
-            if (page_content_tools.has(name))
-            {
-                result = await gate_page_content({name, result,
-                    ctx: extended_ctx, sessions: server.sessions});
-                // a refusal is the server speaking to the agent, not page
-                // content, so it must not be wrapped as untrusted
-                if (result===refusal_text(name))
-                    return result;
-            }
             return wrap_external(name, result);
         }
         catch(e){
